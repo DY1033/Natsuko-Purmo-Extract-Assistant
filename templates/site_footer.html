@@ -1,0 +1,36 @@
+<footer class="site-foot">
+  <div class="site-foot-wrap">
+    <div class="site-foot-top">
+      <div class="site-foot-brand">
+        <div class="site-foot-logo"><i></i><span>{{ site.name }}</span></div>
+        <p>{{ site.footer }}</p>
+      </div>
+      <div class="site-foot-cols">
+        <div class="site-foot-col">
+          <h5>使用</h5>
+          <ul>
+            <li><a href="/#key">开始提取</a></li>
+            <li><a href="/admin/login">后台登录</a></li>
+          </ul>
+        </div>
+        {% if site.contact_name and site.contact_url %}
+        <div class="site-foot-col">
+          <h5>联系</h5>
+          <ul>
+            <li><a href="{{ site.contact_url }}" target="_blank" rel="noopener">{{ site.contact_name }}</a></li>
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="site-foot-bottom">
+      <p>© {{ site.year }} {{ site.name }}. 技术支持 <strong>Natsuko Program</strong>。</p>
+      {% if site.watermark %}
+      <div class="site-foot-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        Made by <span>Natsuko Program</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</footer>

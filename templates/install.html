@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}安装向导 - {{ defaults.site_name }}{% endblock %}
+
+{% block body %}
+<main class="install-wrap">
+  <div class="install-head">
+    <h1>安装向导</h1>
+    <p>花一分钟填几项基本信息，装完就能用。之后这些内容都能在后台「设置」里改。</p>
+  </div>
+
+  <form id="install-form" class="install-card" autocomplete="off">
+    <section class="install-sec">
+      <h2>站点信息</h2>
+      <div class="field">
+        <label for="i-name">网站名称 <span class="req">*</span></label>
+        <input id="i-name" type="text" maxlength="40" required
+               placeholder="显示在页面顶部和浏览器标题，例如：XX 资源站">
+      </div>
+      <div class="field">
+        <label for="i-intro">首页说明</label>
+        <textarea id="i-intro" maxlength="200" placeholder="公钥输入框下面的一句话">{{ defaults.site_intro }}</textarea>
+      </div>
+      <div class="field">
+        <label for="i-footer">首页页脚</label>
+        <input id="i-footer" type="text" maxlength="200" value="{{ defaults.site_footer }}">
+      </div>
+    </section>
+
+    <section class="install-sec">
+      <h2>后台账号</h2>
+      <div class="row-2">
+        <div class="field">
+          <label for="i-pwd">后台密码 <span class="req">*</span></label>
+          <input id="i-pwd" type="password" minlength="6" maxlength="64" required
+                 placeholder="至少 6 位">
+        </div>
+        <div class="field">
+          <label for="i-pwd2">确认密码 <span class="req">*</span></label>
+          <input id="i-pwd2" type="password" minlength="6" maxlength="64" required
+                 placeholder="再输一次">
+        </div>
+      </div>
+      <p class="hint" style="font-size:12px;color:var(--muted);margin:-4px 0 0">
+        后台地址是 <code>/admin</code>，装完会自动登录一次。
+      </p>
+    </section>
+
+    <section class="install-sec">
+      <h2>分享说明页</h2>
+      <p class="hint" style="font-size:12px;color:var(--muted);margin:-6px 0 12px">
+        这是放进压缩包里的那个 HTML 说明页，跟网站本身无关。风格可以每一条解压码单独选。
+      </p>
+      <div class="field">
+        <label for="i-share-title">页面小标题</label>
+        <input id="i-share-title" type="text" maxlength="30" value="{{ defaults.share_title }}">
+      </div>
+      <div class="field">
+        <label for="i-share-intro">引导语</label>
+        <textarea id="i-share-intro" maxlength="200">{{ defaults.share_intro }}</textarea>
+      </div>
+      <div class="field">
+        <label for="i-share-footer">页脚提示</label>
+        <input id="i-share-footer" type="text" maxlength="200" value="{{ defaults.share_footer }}">
+      </div>
+    </section>
+
+    <section class="install-sec">
+      <h2>版权信息</h2>
+      <label class="check-line" for="i-watermark">
+        <input id="i-watermark" type="checkbox" checked>
+        <span class="txt">
+          在首页底部保留 <b>NATSUKO PROGRAM</b> 标识
+          <small>这是项目作者的版权署名。取消勾选即不显示，之后也可以在后台「设置」里随时开关。</small>
+        </span>
+      </label>
+    </section>
+
+    <div class="install-foot">
+      <button type="submit" class="btn primary" id="i-submit">完成安装</button>
+    </div>
+  </form>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var form = document.getElementById('install-form');
+  var btn = document.getElementById('i-submit');
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    var pwd = document.getElementById('i-pwd').value;
+    var pwd2 = document.getElementById('i-pwd2').value;
+    if (pwd.length < 6) { toast('密码至少 6 位', 'err'); return; }
+    if (pwd !== pwd2) { toast('两次输入的密码不一致', 'err'); return; }
+
+    var payload = {
+      site_name: document.getElementById('i-name').value.trim(),
+      site_intro: document.getElementById('i-intro').value.trim(),
+      site_footer: document.getElementById('i-footer').value.trim(),
+      share_title: document.getElementById('i-share-title').value.trim(),
+      share_intro: document.getElementById('i-share-intro').value.trim(),
+      share_footer: document.getElementById('i-share-footer').value.trim(),
+      password: pwd,
+      password_confirm: pwd2,
+      show_watermark: document.getElementById('i-watermark').checked
+    };
+
+    if (!payload.site_name) { toast('网站名称不能空着', 'err'); return; }
+
+    btn.disabled = true;
+    btn.textContent = '正在安装…';
+    try {
+      var res = await fetch('/api/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok || !data.ok) throw new Error(data.error || '安装失败');
+      btn.textContent = '装好了，正在进入后台…';
+      location.href = data.redirect || '/admin';
+    } catch (err) {
+      toast(err.message, 'err');
+      btn.disabled = false;
+      btn.textContent = '完成安装';
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f5f7">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}解压码提取{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%232563eb'/><path d='M11 15v-3.5a5 5 0 0 1 10 0V15' stroke='white' stroke-width='2.6' fill='none'/><rect x='9' y='14' width='14' height='11' rx='2' fill='white'/></svg>">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% block body %}{% endblock %}
+  <div id="toasts"></div>
+  <script>
+    window.toast = function (msg, type) {
+      var box = document.getElementById('toasts');
+      var el = document.createElement('div');
+      el.className = 'toast ' + (type || '');
+      el.textContent = msg;
+      box.appendChild(el);
+      setTimeout(function () {
+        el.style.opacity = '0';
+        el.style.transition = 'opacity .2s';
+        setTimeout(function () { el.remove(); }, 220);
+      }, 2200);
+    };
+
+    window.copyText = async function (text, msg) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+        toast(msg || '已复制');
+        return true;
+      } catch (e) {
+        toast('复制失败，请手动选中复制', 'err');
+        return false;
+      }
+    };
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

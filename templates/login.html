@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}登录后台 - {{ site.name }}{% endblock %}
+
+{% block body %}
+<div class="login-wrap">
+  <div class="login-box">
+    <h1>登录后台</h1>
+    <p class="desc">输入管理密码</p>
+
+    <form id="login-form" autocomplete="off">
+      <div class="field">
+        <label for="password">密码</label>
+        <input id="password" type="password" placeholder="管理密码" autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn primary" id="login-btn">登录</button>
+      <div class="login-err" id="login-error"></div>
+    </form>
+
+    <a class="login-back" href="/">返回提取页</a>
+  </div>
+</div>
+
+{% include "site_footer.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var form = document.getElementById('login-form');
+  var pwd = document.getElementById('password');
+  var btn = document.getElementById('login-btn');
+  var err = document.getElementById('login-error');
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    err.textContent = '';
+    if (!pwd.value) { err.textContent = '请输入密码'; return; }
+
+    btn.disabled = true;
+    btn.textContent = '登录中…';
+    try {
+      var res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd.value })
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (res.ok && data.ok) {
+        location.href = location.pathname.indexOf('/manage') === 0 ? '/manage' : '/admin';
+      } else {
+        err.textContent = data.error || '登录失败';
+        pwd.select();
+      }
+    } catch (e2) {
+      err.textContent = '网络出错了，稍后再试';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '登录';
+    }
+  });
+
+  pwd.focus();
+})();
+</script>
+{% endblock %}

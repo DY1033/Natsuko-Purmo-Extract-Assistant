@@ -1,0 +1,687 @@
+{% extends "base.html" %}
+{% block title %}后台管理 - {{ site.name }}{% endblock %}
+
+{% block body %}
+<header class="admin-head">
+  <div class="inner">
+    <div class="site">{{ site.name }} <em>管理后台</em></div>
+    <div class="actions">
+      <a class="btn sm" href="/" target="_blank" rel="noopener">查看前台</a>
+      <button class="btn sm" id="btn-settings">设置</button>
+      <button class="btn sm" id="btn-pwd">修改密码</button>
+      <button class="btn sm" id="btn-logout">退出</button>
+      <button class="btn sm primary" id="btn-new">新建解压码</button>
+    </div>
+  </div>
+</header>
+
+<main class="admin-main">
+  <section class="summary">
+    <div class="item"><div class="k">解压码</div><div class="v" id="stat-total">–</div></div>
+    <div class="item"><div class="k">可用</div><div class="v" id="stat-active">–</div></div>
+    <div class="item"><div class="k">累计提取</div><div class="v" id="stat-uses">–</div></div>
+    <div class="item"><div class="k">今日提取</div><div class="v" id="stat-today">–</div></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>解压码列表 <span class="cnt" id="code-count">0</span></h2>
+      <div class="panel-tools">
+        <input id="search" type="text" placeholder="搜索公钥或名称">
+        <button class="btn sm" id="btn-refresh">刷新</button>
+        <a class="btn sm" href="/api/admin/export.csv">导出 CSV</a>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:200px">名称</th>
+            <th style="width:150px">公钥</th>
+            <th style="width:170px">解压码</th>
+            <th style="width:110px">提取次数</th>
+            <th style="width:90px">状态</th>
+            <th style="width:130px">有效期</th>
+            <th style="width:235px">操作</th>
+          </tr>
+        </thead>
+        <tbody id="code-tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty-box" style="display:none">还没有解压码，点右上角“新建解压码”。</div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>最近提取记录</h2>
+      <span class="cnt">最近 60 条</span>
+    </div>
+    <div class="logs" id="log-list"></div>
+  </section>
+</main>
+
+<!-- 新建 / 编辑 -->
+<div class="mask" id="code-modal">
+  <div class="dialog">
+    <div class="dialog-head">
+      <h3 id="code-modal-title">新建解压码</h3>
+      <button class="close" data-close="code-modal">✕</button>
+    </div>
+
+    <div id="code-form-wrap">
+      <form id="code-form">
+        <div class="dialog-body">
+          <div class="field">
+            <label for="f-title">名称</label>
+            <input id="f-title" type="text" maxlength="100" placeholder="自己看的备注，例如：10 月素材包">
+          </div>
+          <div class="field">
+            <label for="f-secret">解压码 <span class="req">*</span></label>
+            <div style="display:flex;gap:6px">
+              <input id="f-secret" type="text" maxlength="200" placeholder="对方最终要拿到的内容" required>
+              <button type="button" class="btn sm" id="btn-rand-secret">随机</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="f-note">说明（可选，前台会显示）</label>
+            <textarea id="f-note" maxlength="500" placeholder="例如：解压后有问题找我，别外传"></textarea>
+          </div>
+          <div class="field">
+            <label for="f-theme">说明页风格</label>
+            <select id="f-theme">
+              <option value="">跟随站点默认</option>
+              <option value="plain">简洁白</option>
+              <option value="minimal">极简无边框</option>
+              <option value="paper">米色纸张</option>
+              <option value="dark">深色</option>
+            </select>
+            <p class="hint">只影响下载下来的那份 HTML 说明页，每条可以不一样。</p>
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="f-max">最多提取次数</label>
+              <input id="f-max" type="number" min="1" placeholder="不填就是不限">
+            </div>
+            <div class="field">
+              <label for="f-exp">有效期到</label>
+              <input id="f-exp" type="datetime-local">
+            </div>
+          </div>
+          <p class="hint" style="font-size:12px;color:var(--muted);margin:-4px 0 12px">次数用完或者到了有效期，公钥就失效了。</p>
+          <div id="edit-extra" style="display:none;gap:8px;padding-top:12px;border-top:1px solid var(--line)">
+            <button type="button" class="btn sm" id="btn-reset">重置次数</button>
+            <button type="button" class="btn sm" id="btn-regen">更换公钥</button>
+          </div>
+        </div>
+        <div class="dialog-foot">
+          <button type="button" class="btn" data-close="code-modal">取消</button>
+          <button type="submit" class="btn primary" id="btn-save">创建</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="code-key-wrap" style="display:none">
+      <div class="dialog-body">
+        <div class="done">
+          <p class="lead">公钥已生成。发给对方，对方在提取页输入就能看到解压码。</p>
+          <div class="big-key" id="new-key-text">—</div>
+          <div class="btns">
+            <button class="btn sm" id="btn-copy-key">复制公钥</button>
+            <button class="btn sm" id="btn-copy-link">复制链接</button>
+            <button class="btn sm primary" id="btn-download">下载说明页</button>
+          </div>
+          <p class="tip">说明页是一个单独的 HTML 文件，放进压缩包一起发。对方解压后双击打开，能看到公钥和提取步骤。</p>
+        </div>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn primary" data-close="code-modal">完成</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 修改密码 -->
+<div class="mask" id="pwd-modal">
+  <div class="dialog" style="max-width:380px">
+    <div class="dialog-head">
+      <h3>修改密码</h3>
+      <button class="close" data-close="pwd-modal">✕</button>
+    </div>
+    <form id="pwd-form">
+      <div class="dialog-body">
+        <div class="field">
+          <label for="p-old">原密码</label>
+          <input id="p-old" type="password" autocomplete="current-password">
+        </div>
+        <div class="field">
+          <label for="p-new">新密码</label>
+          <input id="p-new" type="password" autocomplete="new-password" placeholder="至少 6 位">
+        </div>
+        <div class="field">
+          <label for="p-new2">再输一次</label>
+          <input id="p-new2" type="password" autocomplete="new-password">
+        </div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn" data-close="pwd-modal">取消</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 站点设置 -->
+<div class="mask" id="settings-modal">
+  <div class="dialog" style="max-width:520px">
+    <div class="dialog-head">
+      <h3>站点设置</h3>
+      <button class="close" data-close="settings-modal">✕</button>
+    </div>
+    <form id="settings-form">
+      <div class="dialog-body">
+        <div class="field">
+          <label for="s-name">网站名称</label>
+          <input id="s-name" type="text" maxlength="40" placeholder="显示在页面顶部和浏览器标题">
+        </div>
+        <div class="field">
+          <label for="s-intro">首页说明</label>
+          <textarea id="s-intro" maxlength="200" placeholder="公钥输入框下面的一句话"></textarea>
+        </div>
+        <div class="field">
+          <label for="s-footer">首页页脚</label>
+          <input id="s-footer" type="text" maxlength="200">
+        </div>
+
+        <div class="sep"><span>分享说明页</span></div>
+        <p class="sep-tip">这里改的是下载下来的 HTML 说明页，前台不受影响。</p>
+
+        <div class="field">
+          <label for="s-share-title">页面小标题</label>
+          <input id="s-share-title" type="text" maxlength="30" placeholder="例如：解压说明">
+        </div>
+        <div class="field">
+          <label for="s-share-intro">引导语</label>
+          <textarea id="s-share-intro" maxlength="200"></textarea>
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label for="s-theme">默认风格</label>
+            <select id="s-theme">
+              <option value="plain">简洁白</option>
+              <option value="minimal">极简无边框</option>
+              <option value="paper">米色纸张</option>
+              <option value="dark">深色</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="s-share-footer">页脚提示</label>
+            <input id="s-share-footer" type="text" maxlength="200">
+          </div>
+        </div>
+        <p class="sep-tip" style="margin-top:-4px">这里是默认值。新建解压码时会用它，单条可以在创建 / 编辑时另选。</p>
+
+        <div class="sep"><span>页脚联系方式（可选）</span></div>
+        <p class="sep-tip">填了以后，前台页脚会出现一个「联系」栏目。留空则不显示。</p>
+        <div class="row-2">
+          <div class="field">
+            <label for="s-contact-name">显示名称</label>
+            <input id="s-contact-name" type="text" maxlength="30" placeholder="例如：QQ 群 / 邮箱">
+          </div>
+          <div class="field">
+            <label for="s-contact-url">链接</label>
+            <input id="s-contact-url" type="text" maxlength="200" placeholder="例如：mailto:you@example.com">
+          </div>
+        </div>
+
+        <div class="sep"><span>版权</span></div>
+        <label class="check-line" for="s-watermark" style="margin-bottom:4px">
+          <input id="s-watermark" type="checkbox">
+          <span class="txt">
+            页脚显示 <b>Made by Natsuko Program</b>
+            <small>项目作者的版权署名，可随时关闭。</small>
+          </span>
+        </label>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn" id="btn-preview">预览</button>
+        <button type="button" class="btn" data-close="settings-modal">取消</button>
+        <button type="submit" class="btn primary" id="btn-save-settings">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var tbody = $('#code-tbody');
+  var emptyBox = $('#empty-box');
+  var logList = $('#log-list');
+
+  var codes = [];
+  var editingId = null;
+  var newKey = '';
+  var newId = null;
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    function p(n) { return n < 10 ? '0' + n : '' + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+           ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function toLocalInput(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    function p(n) { return n < 10 ? '0' + n : '' + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+           'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  async function api(url, opts) {
+    var res = await fetch(url, Object.assign({
+      headers: { 'Content-Type': 'application/json' }
+    }, opts || {}));
+    if (res.status === 401) { location.href = '/admin/login'; throw new Error('unauthorized'); }
+    var data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok || data.ok === false) throw new Error(data.error || '操作失败');
+    return data;
+  }
+
+  function statusTag(c) {
+    if (!c.enabled) return '<span class="tag off">已停用</span>';
+    if (c.expired) return '<span class="tag bad">已过期</span>';
+    if (c.exhausted) return '<span class="tag warn">次数用完</span>';
+    return '<span class="tag ok">可用</span>';
+  }
+
+  function render() {
+    var q = $('#search').value.trim().toLowerCase();
+    var list = q
+      ? codes.filter(function (c) { return (c.public_key + c.title + c.note).toLowerCase().indexOf(q) >= 0; })
+      : codes;
+
+    $('#code-count').textContent = list.length;
+    tbody.innerHTML = '';
+
+    if (!list.length) {
+      tbody.innerHTML = '';
+      emptyBox.style.display = 'block';
+      emptyBox.textContent = q ? '没有匹配的结果' : '还没有解压码，点右上角“新建解压码”。';
+      return;
+    }
+    emptyBox.style.display = 'none';
+
+    list.forEach(function (c) {
+      var tr = document.createElement('tr');
+      tr.dataset.id = c.id;
+
+      var pct = c.max_uses ? Math.min(100, c.used_count / c.max_uses * 100) : 0;
+      var usage = c.max_uses
+        ? '<b>' + c.used_count + '</b> / ' + c.max_uses
+        : '<b>' + c.used_count + '</b> / 不限';
+      var expText = c.expires_at
+        ? (c.expired ? '<span style="color:#b3261e">' + fmtTime(c.expires_at) + '</span>' : fmtTime(c.expires_at))
+        : '<span style="color:#7b8494">永久</span>';
+
+      tr.innerHTML =
+        '<td class="cell-name">' +
+          '<div class="t">' + esc(c.title) + '</div>' +
+          (c.note ? '<div class="s" title="' + esc(c.note) + '">' + esc(c.note) + '</div>' : '') +
+        '</td>' +
+        '<td><span class="key" data-act="copy-key" title="点击复制">' + esc(c.public_key) + '</span></td>' +
+        '<td><div class="secret">' +
+          '<span class="v" data-secret="' + esc(c.secret) + '">••••••</span>' +
+          '<button class="icon-btn" data-act="eye" title="显示/隐藏">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="2.6"/></svg>' +
+          '</button>' +
+          '<button class="icon-btn" data-act="copy-secret" title="复制解压码">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>' +
+          '</button>' +
+        '</div></td>' +
+        '<td><div class="usage">' + usage + '</div>' +
+          (c.max_uses ? '<div class="bar ' + (c.exhausted ? 'full' : '') + '"><i style="width:' + pct + '%"></i></div>' : '') +
+        '</td>' +
+        '<td>' + statusTag(c) + '</td>' +
+        '<td style="color:#4b5563;font-size:12.5px">' + expText + '</td>' +
+        '<td><div class="ops">' +
+          '<button class="btn sm" data-act="download">下载</button>' +
+          '<button class="btn sm" data-act="link">链接</button>' +
+          '<button class="btn sm" data-act="edit">编辑</button>' +
+          '<button class="btn sm" data-act="toggle">' + (c.enabled ? '停用' : '启用') + '</button>' +
+          '<button class="btn sm danger" data-act="del">删除</button>' +
+        '</div></td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function load(msg) {
+    try {
+      var data = await api('/api/admin/codes');
+      codes = data.codes;
+      $('#stat-total').textContent = data.stats.total;
+      $('#stat-active').textContent = data.stats.active;
+      $('#stat-uses').textContent = data.stats.total_uses;
+      $('#stat-today').textContent = data.stats.today_uses;
+      render();
+      if (msg) toast('已刷新');
+    } catch (e) {
+      if (e.message !== 'unauthorized') toast(e.message, 'err');
+    }
+  }
+
+  async function loadLogs() {
+    try {
+      var data = await api('/api/admin/logs?limit=60');
+      if (!data.logs.length) {
+        logList.innerHTML = '<div class="empty" style="padding:28px">还没有提取记录</div>';
+        return;
+      }
+      var reason = {
+        OK: '提取成功', NOT_FOUND: '公钥不存在', KEY_INVALID: '公钥格式不对',
+        DISABLED: '已停用', EXPIRED: '已过期', EXHAUSTED: '次数用完'
+      };
+      logList.innerHTML = data.logs.map(function (l) {
+        return '<div class="log-row">' +
+          '<span class="dot ' + (l.ok ? 'ok' : 'bad') + '"></span>' +
+          '<span class="k">' + esc(l.public_key) + '</span>' +
+          '<span class="why">' + (reason[l.reason] || esc(l.reason)) + '</span>' +
+          '<span class="time">' + fmtTime(l.created_at) + '</span>' +
+          '<span class="ip">' + esc(l.ip || '-') + '</span>' +
+        '</div>';
+      }).join('');
+    } catch (e) {}
+  }
+
+  function downloadHtml(id) {
+    location.href = '/api/admin/codes/' + id + '/html';
+  }
+
+  tbody.addEventListener('click', async function (e) {
+    var btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    var tr = btn.closest('tr');
+    var id = Number(tr.dataset.id);
+    var code = codes.filter(function (x) { return x.id === id; })[0];
+    if (!code) return;
+    var act = btn.dataset.act;
+
+    if (act === 'copy-key') { copyText(code.public_key, '公钥已复制'); return; }
+    if (act === 'copy-secret') { copyText(code.secret, '解压码已复制'); return; }
+
+    if (act === 'eye') {
+      var span = tr.querySelector('.v');
+      var shown = span.dataset.shown === '1';
+      span.textContent = shown ? '••••••' : code.secret;
+      span.dataset.shown = shown ? '0' : '1';
+      return;
+    }
+
+    if (act === 'link') {
+      copyText(location.origin + '/?k=' + code.public_key, '链接已复制');
+      return;
+    }
+
+    if (act === 'download') { downloadHtml(code.id); return; }
+
+    if (act === 'edit') { openEdit(code); return; }
+
+    if (act === 'toggle') {
+      try {
+        await api('/api/admin/codes/' + id, {
+          method: 'PATCH',
+          body: JSON.stringify({ enabled: !code.enabled })
+        });
+        toast(code.enabled ? '已停用' : '已启用');
+        await load();
+      } catch (err) { toast(err.message, 'err'); }
+      return;
+    }
+
+    if (act === 'del') {
+      if (!confirm('删除“' + code.title + '”？删除后公钥马上失效，数据也找不回来。')) return;
+      try {
+        await api('/api/admin/codes/' + id, { method: 'DELETE' });
+        toast('已删除');
+        await load();
+        await loadLogs();
+      } catch (err) { toast(err.message, 'err'); }
+    }
+  });
+
+  var modal = $('#code-modal');
+  var form = $('#code-form');
+  var formWrap = $('#code-form-wrap');
+  var keyWrap = $('#code-key-wrap');
+
+  function openModal(id) { $('#' + id).classList.add('show'); }
+  function closeModal(id) { $('#' + id).classList.remove('show'); }
+
+  document.querySelectorAll('[data-close]').forEach(function (b) {
+    b.addEventListener('click', function () { closeModal(b.dataset.close); });
+  });
+  document.querySelectorAll('.mask').forEach(function (m) {
+    m.addEventListener('mousedown', function (e) { if (e.target === m) m.classList.remove('show'); });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.mask.show').forEach(function (m) { m.classList.remove('show'); });
+    }
+  });
+
+  function resetForm() {
+    form.reset();
+    $('#edit-extra').style.display = 'none';
+    $('#btn-save').textContent = '创建';
+    formWrap.style.display = 'block';
+    keyWrap.style.display = 'none';
+    editingId = null;
+  }
+
+  $('#btn-new').addEventListener('click', function () {
+    resetForm();
+    $('#code-modal-title').textContent = '新建解压码';
+    openModal('code-modal');
+    setTimeout(function () { $('#f-secret').focus(); }, 60);
+  });
+
+  function openEdit(code) {
+    resetForm();
+    editingId = code.id;
+    $('#code-modal-title').textContent = '编辑解压码';
+    $('#f-title').value = code.title === '未命名解压码' ? '' : code.title;
+    $('#f-secret').value = code.secret;
+    $('#f-note').value = code.note || '';
+    $('#f-theme').value = code.share_theme || '';
+    $('#f-max').value = code.max_uses || '';
+    $('#f-exp').value = toLocalInput(code.expires_at);
+    $('#edit-extra').style.display = 'flex';
+    $('#btn-save').textContent = '保存';
+    openModal('code-modal');
+  }
+
+  $('#btn-rand-secret').addEventListener('click', function () {
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    var arr = new Uint32Array(10);
+    crypto.getRandomValues(arr);
+    var s = '';
+    for (var i = 0; i < 10; i++) s += chars[arr[i] % chars.length];
+    $('#f-secret').value = s;
+  });
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var payload = {
+      title: $('#f-title').value.trim(),
+      secret: $('#f-secret').value.trim(),
+      note: $('#f-note').value.trim(),
+      share_theme: $('#f-theme').value,
+      max_uses: $('#f-max').value.trim() === '' ? null : Number($('#f-max').value),
+      expires_at: $('#f-exp').value ? new Date($('#f-exp').value).toISOString() : null
+    };
+    if (!payload.secret) { toast('解压码不能空着', 'err'); return; }
+
+    var btn = $('#btn-save');
+    btn.disabled = true;
+    try {
+      if (editingId) {
+        await api('/api/admin/codes/' + editingId, { method: 'PATCH', body: JSON.stringify(payload) });
+        toast('已保存');
+        closeModal('code-modal');
+      } else {
+        var data = await api('/api/admin/codes', { method: 'POST', body: JSON.stringify(payload) });
+        newKey = data.code.public_key;
+        newId = data.code.id;
+        $('#new-key-text').textContent = newKey;
+        formWrap.style.display = 'none';
+        keyWrap.style.display = 'block';
+        $('#code-modal-title').textContent = '创建成功';
+      }
+      await load();
+    } catch (err) {
+      toast(err.message, 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('#btn-copy-key').addEventListener('click', function () { copyText(newKey, '公钥已复制'); });
+  $('#btn-copy-link').addEventListener('click', function () {
+    copyText(location.origin + '/?k=' + newKey, '链接已复制');
+  });
+  $('#btn-download').addEventListener('click', function () {
+    if (newId) downloadHtml(newId);
+  });
+
+  $('#btn-reset').addEventListener('click', async function () {
+    if (!editingId) return;
+    if (!confirm('把提取次数清零？')) return;
+    try {
+      await api('/api/admin/codes/' + editingId + '/reset', { method: 'POST' });
+      toast('次数已清零');
+      await load();
+      closeModal('code-modal');
+    } catch (err) { toast(err.message, 'err'); }
+  });
+
+  $('#btn-regen').addEventListener('click', async function () {
+    if (!editingId) return;
+    if (!confirm('换一个新的公钥？旧的会立刻失效。')) return;
+    try {
+      var data = await api('/api/admin/codes/' + editingId + '/regenerate', { method: 'POST' });
+      newKey = data.code.public_key;
+      newId = data.code.id;
+      $('#new-key-text').textContent = newKey;
+      formWrap.style.display = 'none';
+      keyWrap.style.display = 'block';
+      $('#code-modal-title').textContent = '公钥已更换';
+      await load();
+    } catch (err) { toast(err.message, 'err'); }
+  });
+
+  var timer;
+  $('#search').addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(render, 120);
+  });
+  $('#btn-refresh').addEventListener('click', function () { load(true); loadLogs(); });
+
+  $('#btn-logout').addEventListener('click', async function () {
+    await fetch('/api/admin/logout', { method: 'POST' });
+    location.href = '/admin/login';
+  });
+
+
+  // 站点设置
+  async function loadSettings() {
+    var data = await api('/api/admin/settings');
+    var s = data.settings;
+    $('#s-name').value = s.site_name;
+    $('#s-intro').value = s.site_intro;
+    $('#s-footer').value = s.site_footer;
+    $('#s-share-title').value = s.share_title;
+    $('#s-share-intro').value = s.share_intro;
+    $('#s-share-footer').value = s.share_footer;
+    $('#s-contact-name').value = s.contact_name || '';
+    $('#s-contact-url').value = s.contact_url || '';
+    $('#s-theme').value = s.share_theme;
+    $('#s-watermark').checked = s.show_watermark !== '0';
+  }
+
+  $('#btn-settings').addEventListener('click', async function () {
+    openModal('settings-modal');
+    try { await loadSettings(); } catch (e) { toast(e.message, 'err'); }
+  });
+
+  $('#settings-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var btn = $('#btn-save-settings');
+    btn.disabled = true;
+    try {
+      await api('/api/admin/settings', {
+        method: 'POST',
+        body: JSON.stringify({
+          site_name: $('#s-name').value,
+          site_intro: $('#s-intro').value,
+          site_footer: $('#s-footer').value,
+          share_title: $('#s-share-title').value,
+          share_intro: $('#s-share-intro').value,
+          share_footer: $('#s-share-footer').value,
+          contact_name: $('#s-contact-name').value.trim(),
+          contact_url: $('#s-contact-url').value.trim(),
+          share_theme: $('#s-theme').value,
+          show_watermark: $('#s-watermark').checked
+        })
+      });
+      toast('设置已保存');
+      closeModal('settings-modal');
+      setTimeout(function () { location.reload(); }, 600);
+    } catch (err) {
+      toast(err.message, 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('#btn-preview').addEventListener('click', function () {
+    window.open('/api/admin/share-preview', '_blank');
+  });
+
+  $('#btn-pwd').addEventListener('click', function () {
+    $('#pwd-form').reset();
+    openModal('pwd-modal');
+  });
+
+  $('#pwd-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var o = $('#p-old').value, n = $('#p-new').value, n2 = $('#p-new2').value;
+    if (n.length < 6) { toast('新密码至少 6 位', 'err'); return; }
+    if (n !== n2) { toast('两次输入不一致', 'err'); return; }
+    try {
+      await api('/api/admin/password', {
+        method: 'POST',
+        body: JSON.stringify({ old_password: o, new_password: n })
+      });
+      toast('密码已修改，请重新登录');
+      setTimeout(function () { location.href = '/admin/login'; }, 800);
+    } catch (err) { toast(err.message, 'err'); }
+  });
+
+  load();
+  loadLogs();
+  setInterval(function () { if (!document.hidden) { load(); loadLogs(); } }, 30000);
+})();
+</script>
+{% endblock %}

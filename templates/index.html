@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{{ site.name }}{% endblock %}
+
+{% block body %}
+<header class="top">
+  <div class="site">{{ site.name }}</div>
+  <div class="nav"><a href="/admin">后台</a></div>
+</header>
+
+<main class="front-main">
+  <div class="front-box">
+    <h1>输入公钥</h1>
+    <p class="desc">{{ site.intro }}</p>
+
+    <form id="extract-form" autocomplete="off">
+      <div class="key-field">
+        <input id="key" type="text" inputmode="latin" spellcheck="false"
+               placeholder="例如 AB3D-9F2K-7Q1M" aria-label="公钥" maxlength="14">
+        <button type="button" class="clear" id="clear-key" aria-label="清空">✕</button>
+      </div>
+      <button type="submit" class="btn primary" id="submit-btn">提取解压码</button>
+      <p class="form-note">公钥不区分大小写，带不带横线都可以。</p>
+    </form>
+
+    <div class="result" id="result">
+      <div class="head">提取成功</div>
+      <div class="title" id="result-title"></div>
+      <div class="secret-row">
+        <span class="val" id="secret-text"></span>
+        <button class="btn sm" id="copy-secret" type="button">复制</button>
+      </div>
+      <div class="note" id="result-note" style="display:none"></div>
+      <div class="meta" id="result-meta"></div>
+    </div>
+
+    <div class="error" id="error-box"><span id="error-text"></span></div>
+  </div>
+</main>
+
+{% include "site_footer.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var input = document.getElementById('key');
+  var form = document.getElementById('extract-form');
+  var btn = document.getElementById('submit-btn');
+  var clearBtn = document.getElementById('clear-key');
+  var result = document.getElementById('result');
+  var errBox = document.getElementById('error-box');
+  var errText = document.getElementById('error-text');
+  var secretText = document.getElementById('secret-text');
+  var resultTitle = document.getElementById('result-title');
+  var resultNote = document.getElementById('result-note');
+  var resultMeta = document.getElementById('result-meta');
+
+  function formatInput() {
+    var raw = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+    var out = '';
+    for (var i = 0; i < raw.length; i++) {
+      if (i > 0 && i % 4 === 0) out += '-';
+      out += raw.charAt(i);
+    }
+    input.value = out;
+    clearBtn.classList.toggle('show', out.length > 0);
+  }
+
+  input.addEventListener('input', function () { formatInput(); hideError(); });
+  input.addEventListener('paste', function () { setTimeout(formatInput, 0); });
+
+  clearBtn.addEventListener('click', function () {
+    input.value = '';
+    clearBtn.classList.remove('show');
+    hideError();
+    result.classList.remove('show');
+    input.focus();
+  });
+
+  function hideError() { errBox.classList.remove('show'); }
+  function showError(msg) {
+    errText.textContent = msg;
+    errBox.classList.add('show');
+    result.classList.remove('show');
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    function p(n) { return n < 10 ? '0' + n : '' + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+           ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  async function extract() {
+    var key = input.value.trim();
+    hideError();
+    result.classList.remove('show');
+    if (!key) { showError('请先输入公钥'); input.focus(); return; }
+
+    btn.disabled = true;
+    btn.textContent = '查询中…';
+    try {
+      var res = await fetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: key })
+      });
+      var data = await res.json().catch(function () { return {}; });
+
+      if (!res.ok || !data.ok) {
+        showError(data.error || '提取失败，请稍后再试');
+        return;
+      }
+
+      secretText.textContent = data.secret;
+      if (data.title) {
+        resultTitle.textContent = '名称：' + data.title;
+        resultTitle.style.display = 'block';
+      } else {
+        resultTitle.style.display = 'none';
+      }
+
+      if (data.note) {
+        resultNote.textContent = data.note;
+        resultNote.style.display = 'block';
+      } else {
+        resultNote.style.display = 'none';
+      }
+
+      var meta = [];
+      meta.push(data.max_uses
+        ? '已提取 ' + data.used_count + ' 次，上限 ' + data.max_uses + ' 次'
+        : '已提取 ' + data.used_count + ' 次');
+      meta.push(data.expires_at ? '有效期至 ' + fmtTime(data.expires_at) : '长期有效');
+      resultMeta.innerHTML = meta.map(function (t) { return '<span>' + t + '</span>'; }).join('');
+
+      result.classList.add('show');
+    } catch (e) {
+      showError('网络出错了，稍后再试');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '提取解压码';
+    }
+  }
+
+  form.addEventListener('submit', function (e) { e.preventDefault(); extract(); });
+
+  document.getElementById('copy-secret').addEventListener('click', function () {
+    copyText(secretText.textContent, '解压码已复制');
+  });
+
+  var params = new URLSearchParams(location.search);
+  var k = params.get('k') || params.get('key');
+  if (k) {
+    input.value = k;
+    formatInput();
+    if (input.value.replace(/-/g, '').length === 12) extract();
+  } else {
+    input.focus();
+  }
+})();
+</script>
+{% endblock %}
