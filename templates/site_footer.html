@@ -24,11 +24,13 @@
       </div>
     </div>
     <div class="site-foot-bottom">
-      <p>© {{ site.year }} {{ site.name }}. 技术支持 <strong>Natsuko Program</strong>。</p>
+      <p>© {{ site.year }} {{ site.name }}. 技术支持
+        <a class="site-foot-author" href="https://natsuko.online" target="_blank" rel="noopener"><strong>Natsuko Program</strong></a>。
+      </p>
       {% if site.watermark %}
       <div class="site-foot-badge">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-        Made by <span>Natsuko Program</span>
+        Made by <a class="site-foot-author" href="https://natsuko.online" target="_blank" rel="noopener"><span>Natsuko Program</span></a>
       </div>
       {% endif %}
     </div>

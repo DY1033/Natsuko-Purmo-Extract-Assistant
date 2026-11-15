@@ -42,8 +42,13 @@ SECRET_PATH = os.path.join(DATA_DIR, "secret.key")
 DEFAULT_ADMIN_PASSWORD = "admin123"
 SESSION_HOURS = 12
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.2"
 INSTALL_FLAG = os.path.join(DATA_DIR, "installed.json")
+
+# 版权署名：发行版固定保留，后台与安装向导都无法关闭
+AUTHOR_NAME = "Natsuko Program"
+AUTHOR_URL = "https://natsuko.online"
+WATERMARK_LOCKED = True
 
 # 去掉容易混淆的 0/O/1/I/L，共 31 个字符
 ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
@@ -832,7 +837,10 @@ def inject_site():
             "name": s["site_name"],
             "intro": s["site_intro"],
             "footer": s["site_footer"],
-            "watermark": s.get("show_watermark", "1") != "0",
+            "watermark": True if WATERMARK_LOCKED else s.get("show_watermark", "1") != "0",
+            "watermark_locked": WATERMARK_LOCKED,
+            "author_name": AUTHOR_NAME,
+            "author_url": AUTHOR_URL,
             "contact_name": s.get("contact_name", ""),
             "contact_url": s.get("contact_url", ""),
             "year": time.strftime("%Y"),
@@ -876,7 +884,11 @@ def api_save_settings():
         updates["share_theme"] = theme
 
     if "show_watermark" in payload:
-        updates["show_watermark"] = "1" if payload["show_watermark"] in (True, 1, "1", "true") else "0"
+        if WATERMARK_LOCKED:
+            # 发行版：署名固定保留，忽略关闭请求
+            updates["show_watermark"] = "1"
+        else:
+            updates["show_watermark"] = "1" if payload["show_watermark"] in (True, 1, "1", "true") else "0"
 
     if not updates:
         return jsonify(ok=False, error="没有需要保存的内容"), 400
@@ -918,7 +930,7 @@ def api_install():
     share_footer = str(payload.get("share_footer", "")).strip()[:200]
     password = str(payload.get("password", ""))
     confirm = str(payload.get("password_confirm", ""))
-    watermark = "1" if payload.get("show_watermark") in (True, 1, "1", "true") else "0"
+    watermark = "1" if (WATERMARK_LOCKED or payload.get("show_watermark") in (True, 1, "1", "true")) else "0"
 
     if not site_name:
         return jsonify(ok=False, error="请填写网站名称"), 400

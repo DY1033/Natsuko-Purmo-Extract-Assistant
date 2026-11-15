@@ -235,10 +235,10 @@
 
         <div class="sep"><span>版权</span></div>
         <label class="check-line" for="s-watermark" style="margin-bottom:4px">
-          <input id="s-watermark" type="checkbox">
+          <input id="s-watermark" type="checkbox" checked disabled>
           <span class="txt">
             页脚显示 <b>Made by Natsuko Program</b>
-            <small>项目作者的版权署名，可随时关闭。</small>
+            <small>发行版固定保留的版权署名，不可关闭；署名会链接到 natsuko.online。</small>
           </span>
         </label>
       </div>
@@ -617,7 +617,7 @@
     $('#s-contact-name').value = s.contact_name || '';
     $('#s-contact-url').value = s.contact_url || '';
     $('#s-theme').value = s.share_theme;
-    $('#s-watermark').checked = s.show_watermark !== '0';
+    $('#s-watermark').checked = true;
   }
 
   $('#btn-settings').addEventListener('click', async function () {
