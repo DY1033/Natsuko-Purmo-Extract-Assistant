@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}授权管理 - {{ site.name }}{% endblock %}
+
+{% block body %}
+<div class="dev-wrap">
+  <header class="dev-head">
+    <div>
+      <h1>授权管理</h1>
+      <p class="dev-sub">审核开发者提交的域名申请，控制每个站点的页脚署名</p>
+    </div>
+    <div class="dev-head-actions">
+      <a class="btn" href="/admin">返回后台</a>
+    </div>
+  </header>
+
+  {% if not smtp_ready %}
+  <div class="dev-alert">
+    邮件服务未配置，开发者注册时会跳过邮箱验证。配置入口：后台「设置」→ 邮件服务。
+  </div>
+  {% endif %}
+
+  <div class="dev-tabs" id="tabs">
+    <button class="tab active" data-status="">全部 <span id="c-all">0</span></button>
+    <button class="tab" data-status="pending">待审核 <span id="c-pending">0</span></button>
+    <button class="tab" data-status="approved">已通过 <span id="c-approved">0</span></button>
+    <button class="tab" data-status="banned">已封禁 <span id="c-banned">0</span></button>
+    <button class="tab" data-status="rejected">已驳回 <span id="c-rejected">0</span></button>
+  </div>
+
+  <section class="dev-card">
+    <div id="lic-list"><p class="dev-empty">加载中…</p></div>
+  </section>
+</div>
+
+{% include "site_footer.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var cur = '';
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function statusBadge(it) {
+    return '<span class="badge badge-' + it.status + '">' + esc(it.status_text) + '</span>';
+  }
+
+  function actions(it) {
+    var out = [];
+    if (it.status === 'pending') {
+      out.push('<button class="btn primary sm" data-act="approve" data-id="' + it.id + '">通过</button>');
+      out.push('<button class="btn sm" data-act="reject" data-id="' + it.id + '">驳回</button>');
+    }
+    if (it.status === 'approved') {
+      out.push('<button class="btn sm" data-act="ban" data-id="' + it.id + '">封禁</button>');
+    }
+    if (it.status === 'banned') {
+      out.push('<button class="btn sm" data-act="unban" data-id="' + it.id + '">解封</button>');
+    }
+    if (it.status === 'rejected') {
+      out.push('<button class="btn sm" data-act="approve" data-id="' + it.id + '">改为通过</button>');
+    }
+    out.push('<button class="btn sm" data-act="logs" data-id="' + it.id + '">日志</button>');
+    return out.join('');
+  }
+
+  function render(items) {
+    var box = document.getElementById('lic-list');
+    if (!items.length) { box.innerHTML = '<p class="dev-empty">这里还没有记录。</p>'; return; }
+    var html = '<div class="dev-list">';
+    items.forEach(function (it) {
+      html += '<article class="dev-item">'
+        + '<div class="dev-item-main">'
+        + '<div class="dev-item-title"><strong>' + esc(it.domain) + '</strong>' + statusBadge(it) + '</div>'
+        + '<p class="dev-item-meta">' + esc(it.email || '未知') + (it.app_name ? ' · ' + esc(it.app_name) : '') + '</p>'
+        + '<p class="dev-item-meta">提交 ' + esc(it.created_at)
+        + (it.last_check_at ? ' · 校验 ' + esc(it.last_check_at) + ' 次 ' + it.check_count : ' · 从未校验')
+        + (it.last_ip ? ' · IP ' + esc(it.last_ip) : '') + '</p>'
+        + (it.note ? '<p class="dev-item-meta">备注：' + esc(it.note) + '</p>' : '')
+        + (it.admin_note ? '<p class="dev-item-note">审核备注：' + esc(it.admin_note) + '</p>' : '')
+        + '<p class="dev-item-meta mono">' + esc(it.license_key) + '</p>'
+        + '</div>'
+        + '<div class="dev-item-side">'
+        + '<label class="wm-toggle"><input type="checkbox" data-wm="' + it.id + '"'
+        + (it.watermark ? ' checked' : '') + '> 页脚署名</label>'
+        + '<div class="dev-item-actions">' + actions(it) + '</div>'
+        + '</div></article>';
+    });
+    html += '</div>';
+    box.innerHTML = html;
+    bind();
+  }
+
+  function bind() {
+    document.querySelectorAll('[data-act]').forEach(function (b) {
+      b.addEventListener('click', async function () {
+        var act = b.dataset.act, id = b.dataset.id;
+        if (act === 'logs') { return showLogs(id); }
+        var label = { approve: '通过', reject: '驳回', ban: '封禁', unban: '解封' }[act];
+        var note = '';
+        if (act === 'reject' || act === 'ban') {
+          note = prompt('给申请人的审核备注（可留空）：', '') || '';
+        }
+        if (!confirm('确定要' + label + '这条申请吗？')) return;
+        b.disabled = true;
+        try {
+          await api('/api/admin/licenses/' + id, 'PATCH',
+            { action: act, admin_note: note });
+          toast('已' + label);
+          load();
+        } catch (e) { toast(e.message, 'err'); b.disabled = false; }
+      });
+    });
+
+    document.querySelectorAll('[data-wm]').forEach(function (cb) {
+      cb.addEventListener('change', async function () {
+        try {
+          await api('/api/admin/licenses/' + cb.dataset.wm, 'PATCH',
+            { action: 'watermark', watermark: cb.checked });
+          toast(cb.checked ? '该站点会显示页脚署名' : '该站点已隐藏页脚署名');
+        } catch (e) { toast(e.message, 'err'); cb.checked = !cb.checked; }
+      });
+    });
+  }
+
+  async function showLogs(id) {
+    try {
+      var d = await api('/api/admin/licenses/' + id + '/logs');
+      if (!d.items.length) { alert('暂无日志'); return; }
+      alert(d.items.map(function (x) {
+        return x.created_at + '  ' + x.action + (x.ip ? '  ' + x.ip : '') + (x.detail ? '  ' + x.detail : '');
+      }).join('\n'));
+    } catch (e) { toast(e.message, 'err'); }
+  }
+
+  async function api(url, method, body) {
+    var res = await fetch(url, {
+      method: method || 'GET',
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    var d = await res.json().catch(function () { return {}; });
+    if (!res.ok || !d.ok) throw new Error(d.error || ('请求失败 ' + res.status));
+    return d;
+  }
+
+  async function load() {
+    try {
+      var d = await api('/api/admin/licenses' + (cur ? '?status=' + cur : ''));
+      var c = d.counts || {};
+      document.getElementById('c-all').textContent =
+        (c.pending || 0) + (c.approved || 0) + (c.banned || 0) + (c.rejected || 0);
+      ['pending', 'approved', 'banned', 'rejected'].forEach(function (k) {
+        var el = document.getElementById('c-' + k);
+        if (el) el.textContent = c[k] || 0;
+      });
+      render(d.items || []);
+    } catch (e) {
+      document.getElementById('lic-list').innerHTML =
+        '<p class="dev-empty">加载失败：' + esc(e.message) + '</p>';
+    }
+  }
+
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var t = e.target.closest('.tab');
+    if (!t) return;
+    document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('active'); });
+    t.classList.add('active');
+    cur = t.dataset.status;
+    load();
+  });
+
+  load();
+})();
+</script>
+{% endblock %}

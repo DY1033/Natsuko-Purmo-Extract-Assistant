@@ -66,6 +66,15 @@
 
     <section class="install-sec">
       <h2>版权信息</h2>
+      {% if client_mode %}
+      <label class="check-line" for="i-watermark">
+        <input id="i-watermark" type="checkbox" checked disabled>
+        <span class="txt">
+          在首页底部保留 <b>NATSUKO PROGRAM</b> 标识
+          <small>署名是否显示由授权服务器按站点下发，申请通过后默认保留。</small>
+        </span>
+      </label>
+      {% else %}
       <label class="check-line" for="i-watermark">
         <input id="i-watermark" type="checkbox" checked disabled>
         <span class="txt">
@@ -73,7 +82,26 @@
           <small>发行版固定保留的版权署名，不可取消；署名文字会链接到 natsuko.online。</small>
         </span>
       </label>
+      {% endif %}
     </section>
+
+    {% if client_mode %}
+    <section class="install-sec">
+      <h2>获取授权</h2>
+      <p class="sep-tip">安装版需要一枚授权码才能使用。还没有？
+        <a href="https://extract.natsuko.online/dev" target="_blank" rel="noopener">去开发者控制台申请</a>
+        （注册 → 提交域名 → 等待审核通过）。</p>
+      <div class="field">
+        <label for="i-lic-domain">站点域名</label>
+        <input id="i-lic-domain" type="text" placeholder="例如：extract.example.com" autocomplete="url">
+      </div>
+      <div class="field">
+        <label for="i-lic-key">授权码</label>
+        <input id="i-lic-key" type="text" placeholder="NP-XXXX-XXXX-XXXX-XXXX" autocomplete="off">
+      </div>
+      <p class="sep-tip">安装完成后会每天向授权服务器校验一次状态，后台也可以手动刷新。</p>
+    </section>
+    {% endif %}
 
     <div class="install-foot">
       <button type="submit" class="btn primary" id="i-submit">完成安装</button>
@@ -109,6 +137,15 @@
     };
 
     if (!payload.site_name) { toast('网站名称不能空着', 'err'); return; }
+
+    var licDomain = document.getElementById('i-lic-domain');
+    var licKey = document.getElementById('i-lic-key');
+    if (licDomain && licKey) {
+      payload.license_domain = licDomain.value.trim();
+      payload.license_key = licKey.value.trim().toUpperCase();
+      if (!payload.license_domain) { toast('请填写站点域名（授权需要）', 'err'); licDomain.focus(); return; }
+      if (!payload.license_key) { toast('请填写授权码（还没有就点上面的申请链接）', 'err'); licKey.focus(); return; }
+    }
 
     btn.disabled = true;
     btn.textContent = '正在安装…';

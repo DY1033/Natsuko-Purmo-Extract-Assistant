@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}开发者登录 - {{ site.name }}{% endblock %}
+
+{% block body %}
+<div class="login-wrap">
+  <div class="login-box dev-box">
+    <h1>开发者登录</h1>
+    <p class="desc">登录后可以申请站点授权、查看审核状态</p>
+
+    <form method="post" action="/dev/login" autocomplete="on">
+      <div class="field">
+        <label for="email">邮箱</label>
+        <input id="email" name="email" type="email" value="{{ email }}" placeholder="you@example.com" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">密码</label>
+        <input id="password" name="password" type="password" placeholder="登录密码" autocomplete="current-password" required>
+      </div>
+      {% if error %}<div class="login-err show">{{ error }}</div>{% endif %}
+      <button type="submit" class="btn primary">登录</button>
+    </form>
+
+    <div class="dev-links">
+      <a href="/dev/register">还没有账号？注册</a>
+      <a href="/">返回提取页</a>
+    </div>
+  </div>
+</div>
+
+{% include "site_footer.html" %}
+{% endblock %}

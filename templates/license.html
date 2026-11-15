@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}授权状态 - {{ site.name }}{% endblock %}
+
+{% block body %}
+<div class="login-wrap">
+  <div class="login-box dev-box">
+    <div class="lic-mark">
+      {% if info.valid %}
+      <span class="badge badge-approved">授权正常</span>
+      {% else %}
+      <span class="badge badge-banned">站点已停用</span>
+      {% endif %}
+    </div>
+    <h1>{{ site.name }}</h1>
+    <p class="desc" id="lic-msg">正在检查授权状态…</p>
+
+    <div class="lic-info">
+      {% if info.key %}
+      <p><span>授权码</span><code>{{ info.key }}</code></p>
+      <p><span>绑定域名</span><b>{{ info.domain or "未填写" }}</b></p>
+      {% if info.app_name %}<p><span>用途</span><b>{{ info.app_name }}</b></p>{% endif %}
+      <p><span>最近校验</span><b>{{ info.last_ok_at or "从未成功" }}</b></p>
+      {% endif %}
+      <p><span>授权服务器</span><b>{{ info.server }}</b></p>
+    </div>
+
+    <button type="button" class="btn primary" id="lic-refresh">立即校验</button>
+
+    <div class="lic-help">
+      <p>没有授权码或需要重新申请？</p>
+      <a class="btn" href="https://extract.natsuko.online/dev" target="_blank" rel="noopener">前往开发者控制台</a>
+    </div>
+    <p class="lic-foot">如对授权状态有疑问，请联系站点管理员。</p>
+  </div>
+</div>
+
+{% include "site_footer.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var btn = document.getElementById('lic-refresh');
+  var msg = document.getElementById('lic-msg');
+
+  function setMsg(t) { msg.textContent = t; }
+
+  btn.addEventListener('click', async function () {
+    btn.disabled = true; btn.textContent = '校验中…';
+    try {
+      var res = await fetch('/api/license/refresh', { method: 'POST' });
+      var d = await res.json().catch(function () { return {}; });
+      if (res.ok && d.ok) {
+        setMsg(d.msg || (d.valid ? '授权正常' : '授权未生效'));
+        if (d.valid) {
+          toast('授权正常，正在进入站点…');
+          setTimeout(function () { location.href = '/'; }, 800);
+          return;
+        }
+        toast(d.msg || '授权未生效', 'err');
+        if (d.info && !d.info.valid) location.reload();
+      } else {
+        setMsg(d.error || '校验失败');
+      }
+    } catch (e) {
+      setMsg('网络出错了，稍后再试');
+    } finally {
+      btn.disabled = false; btn.textContent = '立即校验';
+    }
+  });
+
+  // 进入页面先自动校验一次
+  btn.click();
+})();
+</script>
+{% endblock %}

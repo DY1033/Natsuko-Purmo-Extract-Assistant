@@ -42,7 +42,7 @@ SECRET_PATH = os.path.join(DATA_DIR, "secret.key")
 DEFAULT_ADMIN_PASSWORD = "admin123"
 SESSION_HOURS = 12
 
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.1.0"
 INSTALL_FLAG = os.path.join(DATA_DIR, "installed.json")
 
 # 版权署名：发行版固定保留，后台与安装向导都无法关闭
@@ -128,6 +128,25 @@ app.config.update(
     JSON_AS_ASCII=False,
     MAX_CONTENT_LENGTH=1 * 1024 * 1024,
 )
+app.config["DB_PATH"] = DB_PATH
+
+# 授权服务（仅服务端部署包含 license_server.py；开源版缺失时自动降级）
+try:
+    from license_server import lic as license_bp, init_license_tables
+    app.register_blueprint(license_bp)
+    LICENSE_SERVER_MODE = True
+except Exception:  # pragma: no cover - 客户端版本走这里
+    init_license_tables = None
+    LICENSE_SERVER_MODE = False
+
+# 授权客户端（安装版：激活 / 每日校验 / 停用逻辑）
+LICENSE_SERVER_URL = os.environ.get("LICENSE_SERVER") or "https://extract.natsuko.online"
+try:
+    from license_client import LicenseClient
+    license_client = LicenseClient(LICENSE_SERVER_URL, DATA_DIR)
+except Exception:  # pragma: no cover
+    license_client = None
+CLIENT_LICENSE_MODE = bool(license_client) and not LICENSE_SERVER_MODE
 
 
 @app.before_request
@@ -139,6 +158,21 @@ def _redirect_to_install():
     if path.startswith("/static/") or path in ("/install", "/api/install", "/healthz", "/favicon.ico"):
         return None
     return redirect("/install")
+
+
+@app.before_request
+def _enforce_license():
+    """安装版：授权未通过 / 被封禁 / 长期离线时，整站停用只留授权页。"""
+    if not CLIENT_LICENSE_MODE or not is_installed():
+        return None
+    path = request.path
+    if (path.startswith(("/static/", "/api/license/", "/license"))
+            or path in ("/healthz", "/favicon.ico")):
+        return None
+    license_client.maybe_check()
+    if license_client.is_valid():
+        return None
+    return redirect("/license")
 
 
 def admin_password_env() -> str | None:
@@ -235,6 +269,11 @@ def init_db() -> None:
     _migrate(conn)
     conn.commit()
     conn.close()
+    if init_license_tables:
+        try:
+            init_license_tables(DB_PATH)
+        except Exception:
+            pass
 
 
 def is_installed() -> bool:
@@ -375,6 +414,29 @@ def touch_session():
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/license")
+def license_page():
+    if not CLIENT_LICENSE_MODE:
+        return redirect("/")
+    return render_template("license.html", info=license_client.info())
+
+
+@app.route("/api/license/refresh", methods=["POST"])
+def api_license_refresh():
+    """授权页与后台共用的手动校验入口。"""
+    if not CLIENT_LICENSE_MODE:
+        return jsonify(ok=False, error="此版本无需授权"), 400
+    valid, msg = license_client.refresh()
+    return jsonify(ok=True, valid=valid, msg=msg, info=license_client.info())
+
+
+@app.route("/api/license/status")
+def api_license_status():
+    if not CLIENT_LICENSE_MODE:
+        return jsonify(ok=False, error="此版本无需授权"), 400
+    return jsonify(ok=True, valid=license_client.is_valid(), info=license_client.info())
 
 
 @app.route("/admin")
@@ -807,6 +869,12 @@ DEFAULT_SETTINGS = {
     "show_watermark": "1",
     "contact_name": "",
     "contact_url": "",
+    "smtp_host": "",
+    "smtp_port": "465",
+    "smtp_user": "",
+    "smtp_pass": "",
+    "smtp_from": "",
+    "smtp_ssl": "1",
 }
 
 SHARE_THEMES = ("plain", "dark", "paper", "minimal")
@@ -832,12 +900,19 @@ def inject_site():
         s = get_settings()
     except Exception:
         s = dict(DEFAULT_SETTINGS)
+    if CLIENT_LICENSE_MODE:
+        # 安装版：页脚署名由授权服务器按站点下发，本地不可改
+        watermark = license_client.watermark()
+    else:
+        watermark = True if WATERMARK_LOCKED else s.get("show_watermark", "1") != "0"
     return {
+        "client_mode": CLIENT_LICENSE_MODE,
+        "license_mode": bool(globals().get("LICENSE_SERVER_MODE")),
         "site": {
             "name": s["site_name"],
             "intro": s["site_intro"],
             "footer": s["site_footer"],
-            "watermark": True if WATERMARK_LOCKED else s.get("show_watermark", "1") != "0",
+            "watermark": watermark,
             "watermark_locked": WATERMARK_LOCKED,
             "author_name": AUTHOR_NAME,
             "author_url": AUTHOR_URL,
@@ -867,6 +942,11 @@ def api_save_settings():
         "share_footer": 200,
         "contact_name": 30,
         "contact_url": 200,
+        "smtp_host": 120,
+        "smtp_port": 6,
+        "smtp_user": 120,
+        "smtp_pass": 200,
+        "smtp_from": 120,
     }
     updates = {}
     for key, limit in limits.items():
@@ -889,6 +969,13 @@ def api_save_settings():
             updates["show_watermark"] = "1"
         else:
             updates["show_watermark"] = "1" if payload["show_watermark"] in (True, 1, "1", "true") else "0"
+
+    if "smtp_ssl" in payload:
+        updates["smtp_ssl"] = "1" if payload["smtp_ssl"] in (True, 1, "1", "true") else "0"
+
+    # 邮件密码留空表示不修改，避免后台回显明文
+    if not updates.get("smtp_pass"):
+        updates.pop("smtp_pass", None)
 
     if not updates:
         return jsonify(ok=False, error="没有需要保存的内容"), 400
@@ -938,6 +1025,16 @@ def api_install():
         return jsonify(ok=False, error="后台密码至少 6 位"), 400
     if password != confirm:
         return jsonify(ok=False, error="两次输入的密码不一致"), 400
+
+    if CLIENT_LICENSE_MODE:
+        # 安装版必须先激活授权：授权码 + 部署域名
+        lic_ok, lic_msg = license_client.activate(
+            str(payload.get("license_key", "")),
+            str(payload.get("license_domain", "")),
+            secrets.token_hex(8),
+        )
+        if not lic_ok:
+            return jsonify(ok=False, error=lic_msg or "授权校验未通过"), 403
 
     values = {
         "site_name": site_name,

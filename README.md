@@ -11,7 +11,8 @@
 - **限次与有效期**：每条解压码可设置最大提取次数和过期时间
 - **分享说明页**：一键下载离线 HTML 说明页放进压缩包，对方双击打开就能看到提取方法
 - **每条独立风格**：说明页有 4 种风格（简洁白 / 极简 / 米色纸张 / 深色），可以按条分配
-- **版权署名**：首页底部 Natsuko Program 固定保留、不可关闭，署名文字链接到 [natsuko.online](https://natsuko.online)
+- **授权体系**：安装时填入授权码激活（到 [extract.natsuko.online](https://extract.natsuko.online) 注册并申请域名），每天自动校验一次授权状态；授权被驳回 / 封禁时整站停用，只显示授权页
+- **版权署名**：首页底部 Natsuko Program 署名默认保留，是否显示由授权服务器按站点单独控制
 
 ## 环境要求
 
@@ -57,7 +58,8 @@ docker run -d -p 5000:5000 -v ./data:/app/data extract-site
 | 首页说明 / 页脚 | 前台展示的两句话 |
 | 后台密码 | 至少 6 位，装完自动登录 |
 | 分享说明页文案 | 放进压缩包的 HTML 说明页用的 |
-| NATSUKO PROGRAM 署名 | 首页底部版权标识，发行版固定保留、不可取消，链接到 natsuko.online |
+| NATSUKO PROGRAM 署名 | 首页底部版权标识，是否显示由授权服务器控制 |
+| 授权码 / 站点域名 | 安装版必填。没有就到 [extract.natsuko.online](https://extract.natsuko.online) 注册并申请 |
 
 装完之后这些内容随时可以在后台右上角「设置」里改。
 

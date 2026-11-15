@@ -23,3 +23,6 @@ venv/
 
 # WorkBuddy 项目数据
 .codebuddy/
+
+# 授权服务端模块（私有部署专用，不随开源版发布）
+license_server.py

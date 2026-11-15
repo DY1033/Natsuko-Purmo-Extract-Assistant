@@ -7,6 +7,7 @@
     <div class="site">{{ site.name }} <em>管理后台</em></div>
     <div class="actions">
       <a class="btn sm" href="/" target="_blank" rel="noopener">查看前台</a>
+      {% if license_mode %}<a class="btn sm" href="/admin/licenses">授权管理</a>{% endif %}
       <button class="btn sm" id="btn-settings">设置</button>
       <button class="btn sm" id="btn-pwd">修改密码</button>
       <button class="btn sm" id="btn-logout">退出</button>
@@ -16,6 +17,13 @@
 </header>
 
 <main class="admin-main">
+  {% if client_mode %}
+  <section class="lic-bar">
+    <span id="lic-dot" class="lic-dot"></span>
+    <span id="lic-text">授权：加载中…</span>
+    <button class="btn sm" id="btn-lic-refresh">立即校验</button>
+  </section>
+  {% endif %}
   <section class="summary">
     <div class="item"><div class="k">解压码</div><div class="v" id="stat-total">–</div></div>
     <div class="item"><div class="k">可用</div><div class="v" id="stat-active">–</div></div>
@@ -234,6 +242,15 @@
         </div>
 
         <div class="sep"><span>版权</span></div>
+        {% if client_mode %}
+        <label class="check-line">
+          <input type="checkbox" checked disabled>
+          <span class="txt">
+            页脚 <b>Made by Natsuko Program</b>
+            <small>署名是否显示由授权服务器按你的站点单独控制，本地不可修改。</small>
+          </span>
+        </label>
+        {% else %}
         <label class="check-line" for="s-watermark" style="margin-bottom:4px">
           <input id="s-watermark" type="checkbox" checked disabled>
           <span class="txt">
@@ -241,6 +258,40 @@
             <small>发行版固定保留的版权署名，不可关闭；署名会链接到 natsuko.online。</small>
           </span>
         </label>
+        {% endif %}
+
+        {% if license_mode %}
+        <div class="sep"><span>邮件服务（开发者注册验证码）</span></div>
+        <p class="sep-tip">不配置也能注册，只是跳过邮箱验证。QQ 邮箱 / 企业邮箱填 SMTP 授权码。</p>
+        <div class="row-2">
+          <div class="field">
+            <label for="s-smtp-host">SMTP 服务器</label>
+            <input id="s-smtp-host" type="text" maxlength="120" placeholder="例如：smtp.qq.com">
+          </div>
+          <div class="field">
+            <label for="s-smtp-port">端口</label>
+            <input id="s-smtp-port" type="text" maxlength="6" placeholder="465">
+          </div>
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label for="s-smtp-user">账号</label>
+            <input id="s-smtp-user" type="text" maxlength="120" placeholder="发件邮箱地址">
+          </div>
+          <div class="field">
+            <label for="s-smtp-pass">授权码 / 密码</label>
+            <input id="s-smtp-pass" type="password" maxlength="200" autocomplete="new-password" placeholder="留空表示不修改">
+          </div>
+        </div>
+        <div class="field">
+          <label for="s-smtp-from">发件人（可选）</label>
+          <input id="s-smtp-from" type="text" maxlength="120" placeholder="默认与账号相同">
+        </div>
+        <label class="check-line" for="s-smtp-ssl" style="margin-bottom:4px">
+          <input id="s-smtp-ssl" type="checkbox" checked>
+          <span class="txt">使用 SSL 加密（465 端口勾选，587 端口取消）</span>
+        </label>
+        {% endif %}
       </div>
       <div class="dialog-foot">
         <button type="button" class="btn" id="btn-preview">预览</button>
@@ -618,6 +669,15 @@
     $('#s-contact-url').value = s.contact_url || '';
     $('#s-theme').value = s.share_theme;
     $('#s-watermark').checked = true;
+    var sm = { 's-smtp-host': s.smtp_host, 's-smtp-port': s.smtp_port,
+               's-smtp-user': s.smtp_user, 's-smtp-from': s.smtp_from };
+    Object.keys(sm).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = sm[id] || '';
+    });
+    if (document.getElementById('s-smtp-ssl')) {
+      document.getElementById('s-smtp-ssl').checked = s.smtp_ssl !== '0';
+    }
   }
 
   $('#btn-settings').addEventListener('click', async function () {
@@ -632,18 +692,30 @@
     try {
       await api('/api/admin/settings', {
         method: 'POST',
-        body: JSON.stringify({
-          site_name: $('#s-name').value,
-          site_intro: $('#s-intro').value,
-          site_footer: $('#s-footer').value,
-          share_title: $('#s-share-title').value,
-          share_intro: $('#s-share-intro').value,
-          share_footer: $('#s-share-footer').value,
-          contact_name: $('#s-contact-name').value.trim(),
-          contact_url: $('#s-contact-url').value.trim(),
-          share_theme: $('#s-theme').value,
-          show_watermark: $('#s-watermark').checked
-        })
+        body: JSON.stringify((function () {
+          var p = {
+            site_name: $('#s-name').value,
+            site_intro: $('#s-intro').value,
+            site_footer: $('#s-footer').value,
+            share_title: $('#s-share-title').value,
+            share_intro: $('#s-share-intro').value,
+            share_footer: $('#s-share-footer').value,
+            contact_name: $('#s-contact-name').value.trim(),
+            contact_url: $('#s-contact-url').value.trim(),
+            share_theme: $('#s-theme').value,
+            show_watermark: $('#s-watermark').checked
+          };
+          var map = { smtp_host: 's-smtp-host', smtp_port: 's-smtp-port',
+                      smtp_user: 's-smtp-user', smtp_pass: 's-smtp-pass',
+                      smtp_from: 's-smtp-from' };
+          Object.keys(map).forEach(function (k) {
+            var el = document.getElementById(map[k]);
+            if (el) p[k] = el.value.trim();
+          });
+          var ssl = document.getElementById('s-smtp-ssl');
+          if (ssl) p.smtp_ssl = ssl.checked;
+          return p;
+        })())
       });
       toast('设置已保存');
       closeModal('settings-modal');
@@ -682,6 +754,49 @@
   load();
   loadLogs();
   setInterval(function () { if (!document.hidden) { load(); loadLogs(); } }, 30000);
+
+  // 授权状态条（安装版）
+  (function () {
+    var textEl = document.getElementById('lic-text');
+    if (!textEl) return;
+    var dot = document.getElementById('lic-dot');
+    var btn = document.getElementById('btn-lic-refresh');
+
+    function paint(valid, msg) {
+      textEl.textContent = '授权：' + msg;
+      dot.className = 'lic-dot ' + (valid === null ? '' : (valid ? 'ok' : 'bad'));
+    }
+
+    async function refresh() {
+      btn.disabled = true;
+      paint(null, '校验中…');
+      try {
+        var res = await fetch('/api/license/refresh', { method: 'POST' });
+        var d = await res.json().catch(function () { return {}; });
+        if (res.ok && d.ok) {
+          paint(d.valid, (d.msg || (d.valid ? '正常' : '未生效'))
+            + (d.info && d.info.domain ? ' · ' + d.info.domain : ''));
+          toast(d.valid ? '授权正常' : (d.msg || '授权未生效'), d.valid ? '' : 'err');
+        } else {
+          paint(false, d.error || '校验失败');
+        }
+      } catch (e) {
+        paint(false, '网络出错了');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    btn.addEventListener('click', refresh);
+    fetch('/api/license/status').then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) return;
+        paint(d.valid, (d.valid ? '正常' : '未生效')
+          + (d.info && d.info.domain ? ' · ' + d.info.domain : '')
+          + (d.info && d.info.last_ok_at ? ' · 上次校验 ' + d.info.last_ok_at : ''));
+      })
+      .catch(function () { paint(false, '状态未知'); });
+  })();
 })();
 </script>
 {% endblock %}
