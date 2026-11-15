@@ -449,6 +449,14 @@ def touch_session():
 # ----------------------------------------------------------------------------
 @app.route("/")
 def index():
+    # 服务端部署（授权中心）首页是官网，不再暴露解压码提取表单
+    if LICENSE_SERVER_MODE:
+        return render_template(
+            "landing.html",
+            dev_logged_in=bool(session.get("dev_uid")),
+            version=APP_VERSION,
+            year=time.strftime("%Y"),
+        )
     return render_template("index.html")
 
 

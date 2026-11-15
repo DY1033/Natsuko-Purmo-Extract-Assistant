@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Natsuko 授权中心 · 解压码提取站</title>
+  <meta name="description" content="给压缩包配一把公钥：解压码留在自己的服务器上，包里只放公钥和一张说明页。换钥匙、限次数、随时停用，老包不用重发。">
+  <meta name="theme-color" content="#f3efe5">
+  <meta property="og:title" content="Natsuko 授权中心 · 解压码提取站">
+  <meta property="og:description" content="解压码不该躺在 txt 里。公钥分发、限次提取、24 小时重复查看。">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="{{ url_for('static', filename='landing.css') }}">
+  <script>document.documentElement.classList.add('js');</script>
+</head>
+<body>
+
+<!-- 顶部导航 -->
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark">Natsuko</span>
+      <span class="brand-sub">License Center</span>
+    </a>
+    <nav class="nav-links" aria-label="页面导航">
+      <a href="#why">为什么</a>
+      <a href="#how">机制</a>
+      <a href="#license">授权</a>
+      <a href="#spec">规格</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    {% if dev_logged_in %}
+    <a class="btn btn-primary btn-sm nav-cta" href="/dev">开发者控制台</a>
+    {% else %}
+    <a class="btn btn-primary btn-sm nav-cta" href="/dev/register">申请授权</a>
+    {% endif %}
+  </div>
+</header>
+
+<main>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow reveal">Public Key Distribution</p>
+        <h1 class="reveal">解压码，<br>不该躺在 <em>txt</em> 里。</h1>
+        <p class="hero-lead reveal">
+          给压缩包配一把<strong>公钥</strong>。包里只放公钥和一张说明页，对方打开你的站点、
+          输入公钥，才拿得到解压码。换钥匙、限次数、随时停用 —— 已经发出去的老包，不用重发。
+        </p>
+        <div class="hero-actions reveal">
+          <a class="btn btn-primary" href="{{ '/dev' if dev_logged_in else '/dev/register' }}">
+            {{ '进入控制台' if dev_logged_in else '申请授权' }}
+          </a>
+          <a class="btn btn-ghost" href="#how">看看它怎么工作</a>
+        </div>
+        <p class="hero-meta reveal">
+          <span>每日自动校验</span>
+          <span>24 小时内重复查看不计数</span>
+          <span>单文件部署</span>
+        </p>
+      </div>
+
+      <div class="key-scene reveal">
+        <button class="key-note" id="key-note" type="button" aria-label="复制示例公钥 AB3D-9F2K-7Q1M">
+          <span class="key-label">
+            <span>Public Key</span>
+            <span>{{ version }}</span>
+          </span>
+          <span class="key-value" id="key-value">AB3D-9F2K-7Q1M</span>
+          <span class="key-foot">
+            <span>放在压缩包里，谁看到都没关系</span>
+            <span class="key-copy-hint" id="key-hint">点击复制</span>
+          </span>
+        </button>
+        <span class="key-annot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 20c6-1 10-5 13-11"/>
+            <path d="M13 6l4 3-1 5"/>
+          </svg>
+          就像一张便签
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 参数横带 -->
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track">
+      {% for _ in range(2) %}
+      <span class="ticker-item"><b>24h</b> 重复查看不计数</span>
+      <span class="ticker-item"><b>12 位</b> 公钥 · 59 bit 空间</span>
+      <span class="ticker-item"><b>4 种</b> 分享页主题</span>
+      <span class="ticker-item"><b>0 个</b> 外部数据库服务</span>
+      <span class="ticker-item"><b>每日</b> 授权状态校验</span>
+      <span class="ticker-item"><b>PBKDF2</b> 后台密码加盐</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 01 对比 -->
+  <section class="section" id="why" aria-labelledby="why-title">
+    <div class="wrap section-grid">
+      <div class="section-num"><b>01</b>The Problem</div>
+      <div>
+        <div class="section-head reveal">
+          <h2 id="why-title">同一件事，两种做法。</h2>
+          <p>把解压码塞进压缩包，是最省事的做法，也是最容易失控的做法。区别只在于：密码到底放在谁手里。</p>
+        </div>
+
+        <div class="compare reveal">
+          <div class="compare-col old">
+            <div class="compare-title">过去</div>
+            <ul>
+              <li>解压码直接写在 readme.txt 里</li>
+              <li>发到群里，截图一转手就外流</li>
+              <li>想换密码，只能重新打包重发</li>
+              <li>不知道谁领过、领了几次</li>
+              <li>链接被爬走，你也没有任何记录</li>
+            </ul>
+          </div>
+          <div class="compare-col now">
+            <div class="compare-title">现在</div>
+            <ul>
+              <li>包里只有公钥和一张说明页</li>
+              <li>解压码留在你自己的服务器上</li>
+              <li>换公钥即时生效，老包继续能用</li>
+              <li>每次提取都有记录：时间、IP、结果</li>
+              <li>停用一条记录，全世界的包一起失效</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 机制 -->
+  <section class="section" id="how" aria-labelledby="how-title">
+    <div class="wrap section-grid">
+      <div class="section-num"><b>02</b>Mechanism</div>
+      <div>
+        <div class="section-head reveal">
+          <h2 id="how-title">三件小事，撑起整个流程。</h2>
+          <p>没有账号体系、没有加密算法科普。它只做三件事，每件都做得足够干脆。</p>
+        </div>
+
+        <div class="mech-list">
+          <article class="mech reveal">
+            <span class="mech-idx">01</span>
+            <div class="mech-body">
+              <h3>公钥与解压码分离</h3>
+              <p>公钥只是一把钥匙孔，可以随便传、随便截图。真正的解压码存在服务端，
+                 只有校验通过才会返回。包里被人翻了个底朝天，也找不到密码。</p>
+            </div>
+          </article>
+
+          <article class="mech reveal">
+            <span class="mech-idx">02</span>
+            <div class="mech-body">
+              <h3>限次与有效期</h3>
+              <p>每条公钥可以单独设最大提取次数和截止时间。用完、过期、手动停用，
+                 三种方式都能让一把钥匙立刻失效，不需要再碰压缩包。</p>
+            </div>
+          </article>
+
+          <article class="mech reveal">
+            <span class="mech-idx">03</span>
+            <div class="mech-body">
+              <h3>24 小时重复查看</h3>
+              <p>同一个 IP 提取过一次，24 小时内再打开不消耗次数 —— 页面关了、网断了、
+                 换台设备想再看一眼，都不用担心次数被吃光。过期后自动重新计数。</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 授权 -->
+  <section class="section" id="license" aria-labelledby="license-title">
+    <div class="wrap section-grid">
+      <div class="section-num"><b>03</b>License</div>
+      <div>
+        <div class="section-head reveal">
+          <h2 id="license-title">拿到授权，四步。</h2>
+          <p>安装版需要一个授权码才能完成安装。授权与域名绑定，一个站点一枚，审核人工处理。</p>
+        </div>
+
+        <div class="flow">
+          <div class="flow-step reveal">
+            <b>STEP 01</b>
+            <h3>注册开发者账号</h3>
+            <p>邮箱加密码，不需要企业资质，个人开发者同样可以申请。</p>
+          </div>
+          <div class="flow-step reveal">
+            <b>STEP 02</b>
+            <h3>提交部署域名</h3>
+            <p>填写站点将要运行的域名，用来绑定授权，防止一码多站。</p>
+          </div>
+          <div class="flow-step reveal">
+            <b>STEP 03</b>
+            <h3>等待审核</h3>
+            <p>人工确认域名可用后通过，状态和控制台里会实时更新。</p>
+          </div>
+          <div class="flow-step reveal">
+            <b>STEP 04</b>
+            <h3>安装时激活</h3>
+            <p>在安装向导里填入域名和授权码，激活成功即可完成安装。</p>
+          </div>
+        </div>
+
+        <div class="flow-cta reveal">
+          <a class="btn btn-primary" href="{{ '/dev' if dev_logged_in else '/dev/register' }}">
+            {{ '查看我的授权' if dev_logged_in else '现在去申请' }}
+          </a>
+          <p>已有账号？<a href="/dev/login" style="color:var(--accent);border-bottom:1px solid currentColor">直接登录</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 规格 -->
+  <section class="section" id="spec" aria-labelledby="spec-title">
+    <div class="wrap section-grid">
+      <div class="section-num"><b>04</b>Spec</div>
+      <div>
+        <div class="section-head reveal">
+          <h2 id="spec-title">它其实很小。</h2>
+          <p>一个 Python 进程，一个 SQLite 文件。没有数据库服务，没有消息队列，备份就是复制一个目录。</p>
+        </div>
+
+        <table class="spec-table reveal">
+          <tbody>
+            <tr>
+              <th scope="row">运行环境</th>
+              <td>Python <span class="mono">3.8+</span>，或直接 <span class="mono">docker run</span> 一个容器</td>
+            </tr>
+            <tr>
+              <th scope="row">依赖</th>
+              <td>Flask + SQLite。无 Redis、无 MySQL、无定时任务框架</td>
+            </tr>
+            <tr>
+              <th scope="row">数据</th>
+              <td><span class="mono">data/</span> 目录四个文件，复制即完成备份与迁移</td>
+            </tr>
+            <tr>
+              <th scope="row">授权校验</th>
+              <td>每日自动一次，后台可手动刷新；断网 7 天内沿用最近已知状态</td>
+            </tr>
+            <tr>
+              <th scope="row">提取计数</th>
+              <td>按公钥 + IP 记录，<span class="mono">24h</span> 内重复提取不累加，凭据到期自动清理</td>
+            </tr>
+            <tr>
+              <th scope="row">页脚署名</th>
+              <td>Natsuko Program 署名由授权服务器按站点下发，本地不可改</td>
+            </tr>
+            <tr>
+              <th scope="row">分发方式</th>
+              <td>GitHub Release 提供源码包，解压后运行 <span class="mono">start.sh</span> 或双击 <span class="mono">start.bat</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 FAQ -->
+  <section class="section" id="faq" aria-labelledby="faq-title">
+    <div class="wrap section-grid">
+      <div class="section-num"><b>05</b>FAQ</div>
+      <div>
+        <div class="section-head reveal">
+          <h2 id="faq-title">你可能会问的。</h2>
+        </div>
+
+        <div class="faq reveal">
+          <details>
+            <summary>授权收费吗？</summary>
+            <div class="faq-body">
+              目前免费。审核主要确认两件事：域名真实可用，以及站点确实是用来分发解压码的。
+              未来如果要收费，会提前在控制台里说明，不会影响已经通过的授权。
+            </div>
+          </details>
+
+          <details>
+            <summary>换域名了怎么办？</summary>
+            <div class="faq-body">
+              在控制台重新提交一次域名申请，拿到新授权码后重新跑一遍安装向导即可。
+              <span class="mono">data/</span> 目录原样保留，公钥、解压码、提取记录都不会丢。
+            </div>
+          </details>
+
+          <details>
+            <summary>服务器连不上授权中心会怎样？</summary>
+            <div class="faq-body">
+              不会立刻停用。客户端会沿用最近一次已知的有效状态，连续 7 天联系不上才会判定失效 ——
+              机房抖动、临时断网、DNS 抽风都不至于误伤一个正常站点。
+            </div>
+          </details>
+
+          <details>
+            <summary>授权被驳回或封禁，站点会变成什么样？</summary>
+            <div class="faq-body">
+              整站停用，所有页面跳转到授权状态页，只保留「立即校验」按钮和申请入口。
+              数据不会删除，恢复授权后立刻回到正常状态。
+            </div>
+          </details>
+
+          <details>
+            <summary>代码能改吗？能去掉授权吗？</summary>
+            <div class="faq-body">
+              代码是开源的，技术上当然可以。唯一的要求是保留页脚里的版权署名与作者链接 ——
+              那是这个项目继续维护下去的理由。
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- 页脚 -->
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <span class="mark">Natsuko Program</span>
+        <p>做一些自己会用的小工具。解压码提取站是其中之一，如果你也正好需要，就拿去用。</p>
+      </div>
+      <div class="foot-links">
+        <div class="foot-col">
+          <h4>Resource</h4>
+          <a href="https://github.com/DY1033/Natsuko-Purmo-Extract-Assistant" target="_blank" rel="noopener">源代码</a>
+          <a href="https://github.com/DY1033/Natsuko-Purmo-Extract-Assistant/releases" target="_blank" rel="noopener">下载与文档</a>
+          <a href="/dev/login">开发者登录</a>
+        </div>
+        <div class="foot-col">
+          <h4>Access</h4>
+          <a href="/dev/register">申请授权</a>
+          <a href="/dev">控制台</a>
+          <a href="https://natsuko.online" target="_blank" rel="noopener">作者主页</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© {{ year }} Natsuko Program · License Center {{ version }}</span>
+      <a class="foot-badge" href="https://natsuko.online" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="16 18 22 12 16 6"/>
+          <polyline points="8 6 2 12 8 18"/>
+        </svg>
+        Made by <span>Natsuko Program</span>
+      </a>
+    </div>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* 滚动入场：只动 opacity / transform */
+  var items = document.querySelectorAll('.reveal');
+  if (reduce || !('IntersectionObserver' in window)) {
+    items.forEach(function (el) { el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.12 });
+
+    items.forEach(function (el, i) {
+      /* 同一屏内的元素错峰 70ms，避免整块同时浮起 */
+      el.style.transitionDelay = (i % 4) * 70 + 'ms';
+      io.observe(el);
+    });
+  }
+
+  /* 复制示例公钥 */
+  var note = document.getElementById('key-note');
+  var value = document.getElementById('key-value');
+  var hint = document.getElementById('key-hint');
+  var toast = document.getElementById('toast');
+  var timer = null;
+
+  function showToast(text) {
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(timer);
+    timer = setTimeout(function () { toast.classList.remove('show'); }, 1800);
+  }
+
+  function copy(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
+
+  if (note) {
+    note.addEventListener('click', function () {
+      copy(value.textContent.trim()).then(function () {
+        hint.textContent = '已复制';
+        showToast('示例公钥已复制 · 装到包里就能用');
+        setTimeout(function () { hint.textContent = '点击复制'; }, 1600);
+      });
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
