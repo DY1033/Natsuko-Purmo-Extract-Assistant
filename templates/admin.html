@@ -115,7 +115,7 @@
               <input id="f-exp" type="datetime-local">
             </div>
           </div>
-          <p class="hint" style="font-size:12px;color:var(--muted);margin:-4px 0 12px">次数用完或者到了有效期，公钥就失效了。</p>
+          <p class="hint" style="font-size:12px;color:var(--muted);margin:-4px 0 12px">次数用完或者到了有效期，公钥就失效了。同一 IP 24 小时内重复提取只算一次。</p>
           <div id="edit-extra" style="display:none;gap:8px;padding-top:12px;border-top:1px solid var(--line)">
             <button type="button" class="btn sm" id="btn-reset">重置次数</button>
             <button type="button" class="btn sm" id="btn-regen">更换公钥</button>
@@ -441,7 +441,7 @@
         return;
       }
       var reason = {
-        OK: '提取成功', NOT_FOUND: '公钥不存在', KEY_INVALID: '公钥格式不对',
+        OK: '提取成功', REUSE: '24 小时内重复提取（不计数）', NOT_FOUND: '公钥不存在', KEY_INVALID: '公钥格式不对',
         DISABLED: '已停用', EXPIRED: '已过期', EXHAUSTED: '次数用完'
       };
       logList.innerHTML = data.logs.map(function (l) {

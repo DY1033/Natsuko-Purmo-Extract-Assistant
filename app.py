@@ -42,7 +42,7 @@ SECRET_PATH = os.path.join(DATA_DIR, "secret.key")
 DEFAULT_ADMIN_PASSWORD = "admin123"
 SESSION_HOURS = 12
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 INSTALL_FLAG = os.path.join(DATA_DIR, "installed.json")
 
 # 版权署名：发行版固定保留，后台与安装向导都无法关闭
@@ -216,9 +216,25 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL
 );
 
+-- 领取凭据：同一 IP 对同一公钥，24 小时内重复提取只算一次
+CREATE TABLE IF NOT EXISTS grants (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    code_id    INTEGER NOT NULL,
+    ip         TEXT    NOT NULL,
+    created_at TEXT    NOT NULL,
+    expires_at TEXT    NOT NULL,
+    last_at    TEXT    NOT NULL,
+    uses       INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE INDEX IF NOT EXISTS idx_logs_created ON logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_codes_key ON codes(public_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_grants_code_ip ON grants(code_id, ip);
+CREATE INDEX IF NOT EXISTS idx_grants_expires ON grants(expires_at);
 """
+
+# 一次提取后，同一 IP 在多少小时内重复提取不再计数
+GRANT_HOURS = 24
 
 
 def get_db() -> sqlite3.Connection:
@@ -264,11 +280,22 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 
 def init_db() -> None:
-    conn = sqlite3.connect(DB_PATH, timeout=20)
-    conn.executescript(SCHEMA)
-    _migrate(conn)
-    conn.commit()
-    conn.close()
+    # gunicorn 多 worker 会同时建表，遇到写锁重试几次
+    for attempt in range(4):
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=20)
+            try:
+                conn.executescript(SCHEMA)
+                _migrate(conn)
+                conn.commit()
+            finally:
+                conn.close()
+            break
+        except sqlite3.OperationalError as exc:
+            if "locked" in str(exc).lower() and attempt < 3:
+                time.sleep(0.6)
+                continue
+            raise
     if init_license_tables:
         try:
             init_license_tables(DB_PATH)
@@ -337,10 +364,19 @@ def is_expired(expires_at: str | None) -> bool:
 
 
 def client_ip() -> str:
+    """取客户端真实 IP。
+
+    ProxyFix 已按 x_for=1 把反代传来的最后一段还原到 remote_addr，
+    优先用它，避免客户端伪造 X-Forwarded-For 绕过提取次数统计。
+    """
+    ip = (request.remote_addr or "").strip()
+    if ip and not ip.startswith("127.") and ip != "::1":
+        return ip[:64]
     fwd = request.headers.get("X-Forwarded-For", "")
     if fwd:
-        return fwd.split(",")[0].strip()[:64]
-    return (request.remote_addr or "")[:64]
+        # 取最后一段（最靠近本站的真实来源），不信任最左端
+        return fwd.split(",")[-1].strip()[:64]
+    return ip[:64]
 
 
 # ----------------------------------------------------------------------------
@@ -515,16 +551,65 @@ def api_extract():
         return jsonify(ok=False, code="EXPIRED",
                        error="该解压码已过期，请联系分享者获取新的公钥"), 410
 
-    if row["max_uses"] is not None and row["used_count"] >= row["max_uses"]:
+    # 同一 IP 对同一公钥：24 小时内重复提取视为同一次，不消耗次数
+    now = now_iso()
+    grant_until = (
+        datetime.now(timezone.utc) + timedelta(hours=GRANT_HOURS)
+    ).isoformat(timespec="seconds")
+
+    # 一条语句同时处理「新领取」和「过期后重新领取」；
+    # 已有未过期凭据时 WHERE 不成立，changes() 为 0，即判定为重复提取。
+    cur = db.execute(
+        "INSERT INTO grants (code_id, ip, created_at, expires_at, last_at, uses)"
+        " VALUES (?,?,?,?,?,1)"
+        " ON CONFLICT(code_id, ip) DO UPDATE SET"
+        "   created_at = excluded.created_at,"
+        "   expires_at = excluded.expires_at,"
+        "   last_at   = excluded.last_at,"
+        "   uses      = grants.uses + 1"
+        " WHERE grants.expires_at <= ?",
+        (row["id"], ip, now, grant_until, now, now),
+    )
+    reused = cur.rowcount == 0
+
+    if reused:
+        g = db.execute(
+            "SELECT expires_at, uses FROM grants WHERE code_id = ? AND ip = ?",
+            (row["id"], ip),
+        ).fetchone()
+        db.execute(
+            "UPDATE grants SET uses = uses + 1, last_at = ? WHERE code_id = ? AND ip = ?",
+            (now, row["id"], ip),
+        )
+        db.commit()
+        _write_log(row["id"], key, True, "REUSE")
+        return jsonify(
+            ok=True,
+            secret=row["secret"],
+            title=row["title"],
+            note=row["note"],
+            used_count=row["used_count"],
+            max_uses=row["max_uses"],
+            expires_at=row["expires_at"],
+            reused=True,
+            grant_expires_at=g["expires_at"] if g else grant_until,
+        )
+
+    # 新的一次提取：原子累加，避免并发下越过上限
+    upd = db.execute(
+        "UPDATE codes SET used_count = used_count + 1, last_used_at = ?"
+        " WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)",
+        (now, row["id"]),
+    )
+    if upd.rowcount == 0:
+        # 次数刚好用尽，撤销刚才写入的凭据
+        db.rollback()
         _write_log(row["id"], key, False, "EXHAUSTED")
         return jsonify(ok=False, code="EXHAUSTED",
                        error="该公钥的提取次数已用完，请联系分享者"), 429
 
-    db.execute(
-        "UPDATE codes SET used_count = used_count + 1, last_used_at = ? WHERE id = ?",
-        (now_iso(), row["id"]),
-    )
     db.commit()
+    _purge_grants(db)
     _write_log(row["id"], key, True, "OK")
 
     return jsonify(
@@ -535,7 +620,26 @@ def api_extract():
         used_count=row["used_count"] + 1,
         max_uses=row["max_uses"],
         expires_at=row["expires_at"],
+        reused=False,
+        grant_expires_at=grant_until,
     )
+
+
+_last_purge = 0.0
+
+
+def _purge_grants(db, force: bool = False) -> None:
+    """清掉过期的领取凭据。进程内节流，最多半小时执行一次。"""
+    global _last_purge
+    now_ts = time.time()
+    if not force and now_ts - _last_purge < 1800:
+        return
+    _last_purge = now_ts
+    try:
+        db.execute("DELETE FROM grants WHERE expires_at <= ?", (now_iso(),))
+        db.commit()
+    except sqlite3.Error:
+        pass
 
 
 def _write_log(code_id, public_key, ok, reason):
@@ -784,6 +888,7 @@ def api_update_code(code_id: int):
 @login_required
 def api_delete_code(code_id: int):
     db = get_db()
+    db.execute("DELETE FROM grants WHERE code_id = ?", (code_id,))
     db.execute("DELETE FROM codes WHERE id = ?", (code_id,))
     db.commit()
     return jsonify(ok=True)
@@ -794,6 +899,8 @@ def api_delete_code(code_id: int):
 def api_reset_usage(code_id: int):
     db = get_db()
     db.execute("UPDATE codes SET used_count = 0, last_used_at = NULL WHERE id = ?", (code_id,))
+    # 清零后重新开始计时，否则同一 IP 仍会命中 24 小时内的旧凭据
+    db.execute("DELETE FROM grants WHERE code_id = ?", (code_id,))
     db.commit()
     row = db.execute("SELECT * FROM codes WHERE id = ?", (code_id,)).fetchone()
     if row is None:

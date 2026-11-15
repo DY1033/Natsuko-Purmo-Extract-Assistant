@@ -19,7 +19,7 @@
         <button type="button" class="clear" id="clear-key" aria-label="清空">✕</button>
       </div>
       <button type="submit" class="btn primary" id="submit-btn">提取解压码</button>
-      <p class="form-note">公钥不区分大小写，带不带横线都可以。</p>
+      <p class="form-note">公钥不区分大小写，带不带横线都可以。提取后 24 小时内可重复查看，不会额外消耗次数。</p>
     </form>
 
     <div class="result" id="result">
@@ -130,10 +130,18 @@
       }
 
       var meta = [];
-      meta.push(data.max_uses
-        ? '已提取 ' + data.used_count + ' 次，上限 ' + data.max_uses + ' 次'
-        : '已提取 ' + data.used_count + ' 次');
-      meta.push(data.expires_at ? '有效期至 ' + fmtTime(data.expires_at) : '长期有效');
+      if (data.reused) {
+        meta.push('24 小时内重复提取，本次不消耗次数');
+      } else {
+        meta.push(data.max_uses
+          ? '已提取 ' + data.used_count + ' 次，上限 ' + data.max_uses + ' 次'
+          : '已提取 ' + data.used_count + ' 次');
+      }
+      if (data.reused && data.grant_expires_at) {
+        meta.push('本次取出可查看至 ' + fmtTime(data.grant_expires_at));
+      } else {
+        meta.push(data.expires_at ? '有效期至 ' + fmtTime(data.expires_at) : '长期有效');
+      }
       resultMeta.innerHTML = meta.map(function (t) { return '<span>' + t + '</span>'; }).join('');
 
       result.classList.add('show');
