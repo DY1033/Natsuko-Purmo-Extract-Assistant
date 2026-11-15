@@ -181,6 +181,39 @@ def admin_password_env() -> str | None:
     return v if v else None
 
 
+# 服务端（授权中心）模式下只保留官网、开发者门户、授权接口与管理后台，
+# 解压码提取站的那套页面与接口一律关闭，避免一个站同时是两种东西。
+_SERVER_KEEP_EXACT = {
+    "/", "/healthz", "/favicon.ico",
+    "/admin", "/admin/login", "/admin/logout", "/admin/center",
+    "/manage", "/manage/login",
+    "/dev", "/dev/login", "/dev/register", "/dev/logout", "/dev/apply",
+}
+_SERVER_KEEP_PREFIX = (
+    "/static/",
+    "/api/dev/",
+    "/api/license/",
+    "/api/center/",
+    "/api/admin/login",
+    "/api/admin/logout",
+)
+
+
+@app.before_request
+def _server_mode_scope():
+    if not LICENSE_SERVER_MODE:
+        return None
+    path = request.path
+    if path in _SERVER_KEEP_EXACT:
+        return None
+    for prefix in _SERVER_KEEP_PREFIX:
+        if path.startswith(prefix):
+            return None
+    if path.startswith("/api/"):
+        return jsonify(ok=False, error="接口不存在"), 404
+    return redirect("/")
+
+
 # ----------------------------------------------------------------------------
 # 数据库
 # ----------------------------------------------------------------------------
@@ -486,13 +519,23 @@ def api_license_status():
 @app.route("/admin")
 @login_required
 def admin_page():
+    if LICENSE_SERVER_MODE:
+        return redirect("/admin/center")
     return render_template("admin.html")
 
 
 @app.route("/manage")
 @login_required
 def admin_page_m():
+    if LICENSE_SERVER_MODE:
+        return redirect("/admin/center")
     return render_template("admin.html")
+
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("admin", None)
+    return redirect("/admin/login")
 
 
 @app.route("/admin/login")

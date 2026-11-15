@@ -3,6 +3,9 @@
 
 {% block body %}
 <div class="dev-wrap">
+  {% if notice %}
+  <div class="dev-notice">{{ notice }}</div>
+  {% endif %}
   <header class="dev-head">
     <div>
       <h1>开发者控制台</h1>

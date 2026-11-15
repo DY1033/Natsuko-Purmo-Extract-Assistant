@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>控制台 · 授权中心</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="stylesheet" href="{{ url_for('static', filename='center.css') }}">
+</head>
+<body>
+
+<aside class="side">
+  <div class="side-brand">
+    <span class="side-mark">N</span>
+    <div>
+      <b>授权中心</b>
+      <small>Console</small>
+    </div>
+  </div>
+
+  <nav class="side-nav">
+    <button class="nav-item is-on" data-tab="overview">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4zm0 7h6v-5H4zm10 0h6v-9h-6zm0-16v5h6V4z"/></svg>
+      数据概览
+    </button>
+    <button class="nav-item" data-tab="licenses">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+      授权审核
+      <em class="nav-badge" id="nav-pending" hidden>0</em>
+    </button>
+    <button class="nav-item" data-tab="developers">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zm-7 9a7 7 0 0114 0"/></svg>
+      开发者
+    </button>
+    <button class="nav-item" data-tab="logs">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6zM9 10h6M9 14h6"/></svg>
+      事件日志
+    </button>
+    <button class="nav-item" data-tab="settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 00-1.7-1L14.6 3h-4l-.3 2.1a7 7 0 00-1.7 1l-2.3-1-2 3.4L6.1 11a7 7 0 000 2l-2 1.5 2 3.4 2.3-1a7 7 0 001.7 1l.3 2.1h4l.3-2.1a7 7 0 001.7-1l2.3 1 2-3.4-2-1.5c.1-.3.1-.7.1-1z"/></svg>
+      系统设置
+    </button>
+  </nav>
+
+  <div class="side-foot">
+    <a class="side-web" href="/" target="_blank" rel="noopener">查看官网 ↗</a>
+    <a href="/admin/logout" id="logout">退出登录</a>
+  </div>
+</aside>
+
+<main class="main">
+
+  <!-- ============ 数据概览 ============ -->
+  <section class="pane is-on" data-pane="overview">
+    <header class="pane-head">
+      <div>
+        <h1>数据概览</h1>
+        <p class="pane-sub">服务器时间 <span id="server-time">—</span> · 数据每次进入页面实时统计</p>
+      </div>
+      <button class="btn btn-sm" id="btn-refresh">刷新</button>
+    </header>
+
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <div class="split">
+      <section class="card">
+        <header class="card-head">
+          <h2>近 7 天调用</h2>
+          <div class="legend">
+            <span><i class="dot dot-act"></i>激活</span>
+            <span><i class="dot dot-chk"></i>校验</span>
+          </div>
+        </header>
+        <div class="chart" id="chart"></div>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <h2>授权状态分布</h2>
+          <span class="muted" id="dist-total">—</span>
+        </header>
+        <div class="dist" id="dist"></div>
+      </section>
+    </div>
+
+    <div class="split split-wide">
+      <section class="card">
+        <header class="card-head">
+          <h2>待审核队列</h2>
+          <button class="link" data-goto="licenses">全部授权 →</button>
+        </header>
+        <div id="pending-list" class="queue"></div>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <h2>最近事件</h2>
+          <button class="link" data-goto="logs">全部日志 →</button>
+        </header>
+        <div id="event-list" class="feed"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============ 授权审核 ============ -->
+  <section class="pane" data-pane="licenses">
+    <header class="pane-head">
+      <div>
+        <h1>授权审核</h1>
+        <p class="pane-sub">域名申请、授权码、署名开关集中在这里处理</p>
+      </div>
+      <div class="head-tools">
+        <input class="input" id="lic-q" type="search" placeholder="搜索域名 / 邮箱 / 授权码" autocomplete="off">
+        <button class="btn btn-sm" id="lic-refresh">刷新</button>
+      </div>
+    </header>
+
+    <div class="tabs" id="lic-tabs">
+      <button class="tab is-on" data-status="">全部</button>
+      <button class="tab" data-status="pending">待审核</button>
+      <button class="tab" data-status="approved">已通过</button>
+      <button class="tab" data-status="banned">已封禁</button>
+      <button class="tab" data-status="rejected">已驳回</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table" id="lic-table">
+        <thead>
+          <tr>
+            <th>域名</th>
+            <th>开发者</th>
+            <th>状态</th>
+            <th class="num">校验</th>
+            <th>最近校验</th>
+            <th>署名</th>
+            <th class="right">操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="pager" id="lic-pager"></div>
+  </section>
+
+  <!-- ============ 开发者 ============ -->
+  <section class="pane" data-pane="developers">
+    <header class="pane-head">
+      <div>
+        <h1>开发者账号</h1>
+        <p class="pane-sub">停用账号只影响登录，已签发的授权需要单独封禁</p>
+      </div>
+      <div class="head-tools">
+        <input class="input" id="dev-q" type="search" placeholder="搜索邮箱 / 昵称" autocomplete="off">
+        <button class="btn btn-sm" id="dev-refresh">刷新</button>
+      </div>
+    </header>
+
+    <div class="table-wrap">
+      <table class="table" id="dev-table">
+        <thead>
+          <tr>
+            <th>邮箱</th>
+            <th>昵称</th>
+            <th class="num">授权</th>
+            <th>最近登录</th>
+            <th>注册时间</th>
+            <th>状态</th>
+            <th class="right">操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="pager" id="dev-pager"></div>
+  </section>
+
+  <!-- ============ 日志 ============ -->
+  <section class="pane" data-pane="logs">
+    <header class="pane-head">
+      <div>
+        <h1>事件日志</h1>
+        <p class="pane-sub">客户端激活、校验、被拒的原始记录，用于排查授权问题</p>
+      </div>
+      <div class="head-tools">
+        <select class="input" id="log-action">
+          <option value="">全部动作</option>
+        </select>
+        <button class="btn btn-sm" id="log-refresh">刷新</button>
+      </div>
+    </header>
+
+    <div class="split split-wide">
+      <section class="card card-flat">
+        <div class="table-wrap">
+          <table class="table" id="log-table">
+            <thead>
+              <tr><th>时间</th><th>动作</th><th>授权码</th><th>IP</th><th>详情</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="pager" id="log-pager"></div>
+      </section>
+
+      <section class="card">
+        <header class="card-head"><h2>管理员操作</h2></header>
+        <div class="feed" id="audit-list"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============ 设置 ============ -->
+  <section class="pane" data-pane="settings">
+    <header class="pane-head">
+      <div>
+        <h1>系统设置</h1>
+        <p class="pane-sub">邮件服务用于注册验证码；未配置时注册改为免验证</p>
+      </div>
+    </header>
+
+    <form class="card form-card" id="settings-form">
+      <fieldset>
+        <legend>邮件服务</legend>
+        <div class="grid-2">
+          <label class="field">
+            <span>SMTP 主机</span>
+            <input class="input" name="smtp_host" placeholder="smtp.example.com">
+          </label>
+          <label class="field">
+            <span>端口</span>
+            <input class="input" name="smtp_port" placeholder="465">
+          </label>
+          <label class="field">
+            <span>账号</span>
+            <input class="input" name="smtp_user" placeholder="no-reply@example.com" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>密码 / 授权码</span>
+            <input class="input" name="smtp_pass" type="password" placeholder="留空则不修改" autocomplete="new-password">
+          </label>
+          <label class="field">
+            <span>发件人</span>
+            <input class="input" name="smtp_from" placeholder="留空则同账号">
+          </label>
+        </div>
+        <label class="field check">
+          <input type="checkbox" name="smtp_ssl">
+          <span>使用 SSL（465 端口通常开启）</span>
+        </label>
+        <p class="hint" id="smtp-state">—</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>注册与署名</legend>
+        <label class="field check">
+          <input type="checkbox" name="registration_open">
+          <span>开放新开发者注册</span>
+        </label>
+        <label class="field check">
+          <input type="checkbox" name="watermark_default">
+          <span>新通过的授权默认显示 Natsuko Program 署名</span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>站点公告</legend>
+        <label class="field">
+          <span>显示在开发者控制台顶部，留空则不显示</span>
+          <textarea class="input" name="site_notice" rows="3" maxlength="200"></textarea>
+        </label>
+      </fieldset>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">保存设置</button>
+        <span class="hint" id="save-state"></span>
+      </div>
+    </form>
+  </section>
+
+</main>
+
+<!-- 详情抽屉 -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="授权详情">
+  <header class="drawer-head">
+    <div>
+      <h2 id="d-domain">—</h2>
+      <p id="d-sub" class="muted">—</p>
+    </div>
+    <button class="icon-btn" id="drawer-close" aria-label="关闭">×</button>
+  </header>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  var toastTimer = null;
+  function toast(msg, bad) {
+    var t = $('#toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (bad ? ' bad' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = 'toast'; }, 2600);
+  }
+
+  function request(path, options) {
+    var opt = options || {};
+    opt.headers = Object.assign({ 'X-Requested-With': 'fetch' }, opt.headers || {});
+    if (opt.body && typeof opt.body !== 'string') {
+      opt.headers['Content-Type'] = 'application/json';
+      opt.body = JSON.stringify(opt.body);
+    }
+    return fetch(path, opt).then(function (res) {
+      if (res.status === 401) {
+        location.href = '/admin/login?next=/admin/center';
+        throw new Error('未登录');
+      }
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
+        return data;
+      });
+    });
+  }
+
+  var statusClass = {
+    pending: 'b-warn', approved: 'b-ok', rejected: 'b-mute', banned: 'b-bad'
+  };
+
+  /* ------------------------------ 概览 ------------------------------ */
+  var licCache = [];
+
+  function loadOverview() {
+    request('/api/center/overview').then(function (d) {
+      $('#server-time').textContent = d.kpi.server_time;
+      var k = d.kpi;
+
+      var cells = [
+        ['开发者账号', k.dev_total, '近 7 天新增 ' + k.dev_new_7d + ' · 活跃 ' + k.dev_active_7d],
+        ['待审核', k.pending, k.pending > 0 ? '需要处理' : '暂无积压', k.pending > 0 ? 'hot' : ''],
+        ['已授权', k.approved, '总申请 ' + k.lic_total + ' 条'],
+        ['24h 在线', k.online_24h, '近 7 天 ' + k.online_7d + ' 台'],
+        ['已激活', k.activated, '已绑定实例'],
+        ['今日调用', k.checks_today, '激活 + 校验'],
+        ['已封禁', k.banned, '驳回 ' + k.rejected + ' 条', k.banned > 0 ? 'warn' : ''],
+        ['注册转化', k.dev_total ? Math.round(k.approved / Math.max(1, k.lic_total) * 100) + '%' : '—', '通过 / 申请']
+      ];
+      $('#kpi-grid').innerHTML = cells.map(function (c) {
+        return '<div class="kpi ' + (c[3] || '') + '">'
+          + '<span class="kpi-label">' + esc(c[0]) + '</span>'
+          + '<b class="kpi-num">' + esc(c[1]) + '</b>'
+          + '<span class="kpi-foot">' + esc(c[2]) + '</span></div>';
+      }).join('');
+
+      var badge = $('#nav-pending');
+      if (k.pending > 0) { badge.textContent = k.pending; badge.hidden = false; }
+      else { badge.hidden = true; }
+
+      // 趋势
+      var max = 1;
+      d.trend.forEach(function (t) { max = Math.max(max, t.activate, t.check); });
+      $('#chart').innerHTML = '<div class="bars">' + d.trend.map(function (t) {
+        var ha = Math.round(t.activate / max * 100);
+        var hc = Math.round(t.check / max * 100);
+        return '<div class="bar-col" title="' + esc(t.date + ' · 激活 ' + t.activate + ' · 校验 ' + t.check) + '">'
+          + '<div class="bar-stack">'
+          + '<i class="bar bar-act" style="height:' + Math.max(ha, t.activate ? 4 : 0) + '%"></i>'
+          + '<i class="bar bar-chk" style="height:' + Math.max(hc, t.check ? 4 : 0) + '%"></i>'
+          + '</div>'
+          + '<span class="bar-label">' + esc(t.label) + '</span>'
+          + '</div>';
+      }).join('') + '</div>';
+
+      // 分布
+      var dist = [
+        ['已通过', k.approved, 'ok'],
+        ['待审核', k.pending, 'warn'],
+        ['已驳回', k.rejected, 'mute'],
+        ['已封禁', k.banned, 'bad']
+      ];
+      var total = Math.max(1, k.lic_total);
+      $('#dist-total').textContent = k.lic_total + ' 条申请';
+      $('#dist').innerHTML = dist.map(function (it) {
+        var pct = Math.round(it[1] / total * 100);
+        return '<div class="dist-row">'
+          + '<span class="dist-name">' + esc(it[0]) + '</span>'
+          + '<span class="dist-track"><i class="dist-fill f-' + it[2] + '" style="width:' + pct + '%"></i></span>'
+          + '<b class="dist-num">' + esc(it[1]) + '</b></div>';
+      }).join('');
+
+      // 待审队列
+      $('#pending-list').innerHTML = d.pending.length
+        ? d.pending.map(function (p) {
+            return '<div class="queue-item">'
+              + '<div class="queue-main"><b>' + esc(p.domain) + '</b>'
+              + '<small>' + esc(p.email) + (p.app_name ? ' · ' + esc(p.app_name) : '') + '</small></div>'
+              + '<span class="queue-time">' + esc(p.created_at.slice(5)) + '</span>'
+              + '<div class="queue-actions">'
+              + '<button class="btn btn-xs btn-ok" data-act="approve" data-id="' + p.id + '">通过</button>'
+              + '<button class="btn btn-xs" data-act="reject" data-id="' + p.id + '">驳回</button>'
+              + '</div></div>';
+          }).join('')
+        : '<p class="empty">队列是空的。</p>';
+
+      // 事件
+      $('#event-list').innerHTML = d.events.length
+        ? d.events.map(function (e) {
+            return '<div class="feed-row">'
+              + '<span class="feed-dot ' + (e.action.indexOf('denied') > -1 ? 'bad' : '') + '"></span>'
+              + '<div class="feed-main"><b>' + esc(e.action_text) + '</b> '
+              + '<span class="mono">' + esc(e.license_key || e.detail) + '</span></div>'
+              + '<span class="feed-time">' + esc(e.created_at.slice(5)) + '</span></div>';
+          }).join('')
+        : '<p class="empty">暂无事件。</p>';
+
+    }).catch(function (err) { toast(err.message, true); });
+  }
+
+  /* ------------------------------ 授权表 ------------------------------ */
+  var licState = { page: 1, status: '', q: '' };
+
+  function loadLicenses() {
+    var qs = '?page=' + licState.page + '&status=' + encodeURIComponent(licState.status)
+      + '&q=' + encodeURIComponent(licState.q);
+    request('/api/center/licenses' + qs).then(function (d) {
+      licCache = d.items;
+      var tb = $('#lic-table tbody');
+      tb.innerHTML = d.items.length ? d.items.map(function (it) {
+        return '<tr data-id="' + it.id + '">'
+          + '<td><b>' + esc(it.domain) + '</b>' + (it.app_name ? '<small class="cell-sub">' + esc(it.app_name) + '</small>' : '') + '</td>'
+          + '<td>' + esc(it.email) + '</td>'
+          + '<td><span class="badge ' + (statusClass[it.status] || '') + '">' + esc(it.status_text) + '</span></td>'
+          + '<td class="num">' + it.check_count + '</td>'
+          + '<td class="muted">' + esc(it.last_check_at || '—') + '</td>'
+          + '<td>' + (it.watermark ? '<span class="pill on">显示</span>' : '<span class="pill">隐藏</span>') + '</td>'
+          + '<td class="right">' + rowActions(it) + '</td>'
+          + '</tr>';
+      }).join('') : '<tr><td colspan="7" class="empty">没有匹配的记录。</td></tr>';
+
+      $('#lic-pager').innerHTML = pagerHtml(d.page, d.size, d.total);
+    }).catch(function (err) { toast(err.message, true); });
+  }
+
+  function rowActions(it) {
+    var out = ['<button class="btn btn-xs" data-open="' + it.id + '">详情</button>'];
+    if (it.status === 'pending') {
+      out.push('<button class="btn btn-xs btn-ok" data-act="approve" data-id="' + it.id + '">通过</button>');
+      out.push('<button class="btn btn-xs" data-act="reject" data-id="' + it.id + '">驳回</button>');
+    } else if (it.status === 'approved') {
+      out.push('<button class="btn btn-xs btn-bad" data-act="ban" data-id="' + it.id + '">封禁</button>');
+    } else if (it.status === 'banned') {
+      out.push('<button class="btn btn-xs" data-act="unban" data-id="' + it.id + '">解封</button>');
+    }
+    return out.join('');
+  }
+
+  function pagerHtml(page, size, total) {
+    var pages = Math.max(1, Math.ceil(total / size));
+    return '<span class="muted">共 ' + total + ' 条 · 第 ' + page + '/' + pages + ' 页</span>'
+      + '<span class="pager-btns">'
+      + '<button class="btn btn-xs" data-page="' + (page - 1) + '"' + (page <= 1 ? ' disabled' : '') + '>上一页</button>'
+      + '<button class="btn btn-xs" data-page="' + (page + 1) + '"' + (page >= pages ? ' disabled' : '') + '>下一页</button>'
+      + '</span>';
+  }
+
+  function doLicenseAction(id, action) {
+    request('/api/center/licenses/' + id, { method: 'PATCH', body: { action: action } })
+      .then(function (d) {
+        toast(action === 'approve' ? '已通过' : action === 'reject' ? '已驳回'
+          : action === 'ban' ? '已封禁' : action === 'unban' ? '已解封'
+          : action === 'regenerate' ? '已换码，客户端需重新激活' : '已更新');
+        loadLicenses(); loadOverview();
+        if (!$('#drawer').hidden) openDrawer(id);
+      }).catch(function (err) { toast(err.message, true); });
+  }
+
+  /* ------------------------------ 抽屉 ------------------------------ */
+  function openDrawer(id) {
+    request('/api/center/licenses/' + id).then(function (d) {
+      var it = d.item;
+      $('#d-domain').textContent = it.domain;
+      $('#d-sub').textContent = it.email + (it.app_name ? ' · ' + it.app_name : '');
+
+      var kv = [
+        ['状态', '<span class="badge ' + (statusClass[it.status] || '') + '">' + esc(it.status_text) + '</span>'],
+        ['授权码', '<span class="mono">' + esc(it.license_key) + '</span> <button class="mini" data-copy="' + esc(it.license_key) + '">复制</button>'],
+        ['实例 ID', '<span class="mono">' + esc(it.instance_id || '未激活') + '</span>'],
+        ['最近校验', esc(it.last_check_at || '—') + ' · IP ' + esc(it.last_ip || '—')],
+        ['累计校验', it.check_count + ' 次'],
+        ['提交时间', esc(it.created_at)],
+        ['审核时间', esc(it.reviewed_at || '—')],
+        ['署名', it.watermark ? '显示' : '隐藏']
+      ];
+
+      var body = '<dl class="kv">' + kv.map(function (r) {
+        return '<dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd>';
+      }).join('') + '</dl>';
+
+      body += '<div class="drawer-block"><label class="field"><span>管理员备注（开发者可见）</span>'
+        + '<input class="input" id="d-note" value="' + esc(it.admin_note) + '" maxlength="200"></label>'
+        + '<div class="row-actions">'
+        + '<button class="btn btn-xs" data-note="1">保存备注</button>'
+        + '<button class="btn btn-xs" data-watermark="' + (it.watermark ? '0' : '1') + '">'
+        + (it.watermark ? '隐藏署名' : '显示署名') + '</button>'
+        + '<button class="btn btn-xs btn-bad" data-regenerate="1">重发授权码</button>'
+        + '</div></div>';
+
+      body += '<div class="drawer-block"><h3>调用记录</h3>'
+        + (d.logs.length ? '<div class="feed compact">' + d.logs.map(function (l) {
+            return '<div class="feed-row"><span class="feed-dot ' + (l.action.indexOf('denied') > -1 ? 'bad' : '') + '"></span>'
+              + '<div class="feed-main"><b>' + esc(l.action_text) + '</b> <span class="mono">' + esc(l.detail) + '</span></div>'
+              + '<span class="feed-time">' + esc(l.created_at.slice(5)) + '</span></div>';
+          }).join('') + '</div>' : '<p class="empty">还没有调用记录。</p>')
+        + '</div>';
+
+      body += '<div class="drawer-block drawer-ops">'
+        + (it.status === 'pending' ? '<button class="btn btn-ok" data-act="approve" data-id="' + it.id + '">通过申请</button>' : '')
+        + (it.status === 'approved' ? '<button class="btn btn-bad" data-act="ban" data-id="' + it.id + '">封禁授权</button>' : '')
+        + (it.status === 'banned' ? '<button class="btn" data-act="unban" data-id="' + it.id + '">解除封禁</button>' : '')
+        + (it.status === 'rejected' ? '<button class="btn" data-act="approve" data-id="' + it.id + '">改为通过</button>' : '')
+        + '</div>';
+
+      $('#drawer-body').innerHTML = body;
+      $('#drawer').hidden = false;
+      $('#scrim').hidden = false;
+      document.body.classList.add('drawer-open');
+    }).catch(function (err) { toast(err.message, true); });
+  }
+
+  function closeDrawer() {
+    $('#drawer').hidden = true;
+    $('#scrim').hidden = true;
+    document.body.classList.remove('drawer-open');
+  }
+
+  /* ------------------------------ 开发者 ------------------------------ */
+  var devState = { page: 1, q: '' };
+
+  function loadDevelopers() {
+    request('/api/center/developers?page=' + devState.page + '&q=' + encodeURIComponent(devState.q))
+      .then(function (d) {
+        var tb = $('#dev-table tbody');
+        tb.innerHTML = d.items.length ? d.items.map(function (it) {
+          return '<tr>'
+            + '<td><b>' + esc(it.email) + '</b></td>'
+            + '<td>' + esc(it.nickname || '—') + '</td>'
+            + '<td class="num">' + it.ok_count + ' / ' + it.lic_count + '</td>'
+            + '<td class="muted">' + esc(it.last_login_at || '—') + '</td>'
+            + '<td class="muted">' + esc(it.created_at) + '</td>'
+            + '<td>' + (it.active ? '<span class="badge b-ok">正常</span>' : '<span class="badge b-bad">已停用</span>') + '</td>'
+            + '<td class="right">'
+            + '<button class="btn btn-xs" data-dev="' + (it.active ? 'ban' : 'unban') + '" data-id="' + it.id + '">'
+            + (it.active ? '停用' : '恢复') + '</button> '
+            + '<button class="btn btn-xs" data-dev="reset-password" data-id="' + it.id + '">重置密码</button>'
+            + '</td></tr>';
+        }).join('') : '<tr><td colspan="7" class="empty">没有匹配的账号。</td></tr>';
+        $('#dev-pager').innerHTML = pagerHtml(d.page, d.size, d.total);
+      }).catch(function (err) { toast(err.message, true); });
+  }
+
+  function doDevAction(id, action, btn) {
+    if (action === 'reset-password' && !confirm('重置后旧密码立即失效，继续？')) return;
+    request('/api/center/developers/' + id, { method: 'PATCH', body: { action: action } })
+      .then(function (d) {
+        if (d.temp_password) {
+          prompt('临时密码（只显示这一次，复制给开发者）：', d.temp_password);
+        } else {
+          toast(action === 'ban' ? '账号已停用' : '账号已恢复');
+        }
+        loadDevelopers();
+      }).catch(function (err) { toast(err.message, true); });
+  }
+
+  /* ------------------------------ 日志 ------------------------------ */
+  var logState = { page: 1, action: '' };
+
+  function loadLogs() {
+    request('/api/center/logs?page=' + logState.page + '&action=' + encodeURIComponent(logState.action))
+      .then(function (d) {
+        var sel = $('#log-action');
+        if (sel.options.length <= 1) {
+          sel.innerHTML = '<option value="">全部动作</option>' + d.actions.map(function (a) {
+            return '<option value="' + esc(a.key) + '">' + esc(a.text) + '</option>';
+          }).join('');
+        }
+        var tb = $('#log-table tbody');
+        tb.innerHTML = d.items.length ? d.items.map(function (it) {
+          return '<tr>'
+            + '<td class="muted mono">' + esc(it.created_at) + '</td>'
+            + '<td><span class="badge ' + (it.action.indexOf('denied') > -1 ? 'b-bad' : 'b-mute') + '">' + esc(it.action_text) + '</span></td>'
+            + '<td class="mono">' + esc(it.license_key) + '</td>'
+            + '<td class="mono muted">' + esc(it.ip) + '</td>'
+            + '<td class="muted">' + esc(it.detail) + '</td></tr>';
+        }).join('') : '<tr><td colspan="5" class="empty">暂无记录。</td></tr>';
+        $('#log-pager').innerHTML = pagerHtml(d.page, d.size, d.total);
+
+        $('#audit-list').innerHTML = d.audits.length ? d.audits.map(function (a) {
+          return '<div class="feed-row"><span class="feed-dot"></span>'
+            + '<div class="feed-main"><b>' + esc(a.action_text) + '</b> <span class="mono">' + esc(a.target) + '</span>'
+            + (a.detail ? '<small class="cell-sub">' + esc(a.detail) + '</small>' : '') + '</div>'
+            + '<span class="feed-time">' + esc(a.created_at.slice(5)) + '</span></div>';
+        }).join('') : '<p class="empty">还没有管理员操作。</p>';
+      }).catch(function (err) { toast(err.message, true); });
+  }
+
+  /* ------------------------------ 设置 ------------------------------ */
+  function loadSettings() {
+    request('/api/center/settings').then(function (d) {
+      var f = $('#settings-form');
+      var s = d.settings;
+      f.smtp_host.value = s.smtp_host || '';
+      f.smtp_port.value = s.smtp_port || '';
+      f.smtp_user.value = s.smtp_user || '';
+      f.smtp_from.value = s.smtp_from || '';
+      f.smtp_pass.value = '';
+      f.smtp_ssl.checked = !!s.smtp_ssl;
+      f.registration_open.checked = !!s.registration_open;
+      f.watermark_default.checked = !!s.watermark_default;
+      f.site_notice.value = s.site_notice || '';
+      $('#smtp-state').textContent = d.smtp_ready
+        ? '邮件服务已配置，注册需要邮箱验证码。'
+        : '邮件服务未配置：注册暂免验证码，配置后自动开启验证。';
+    }).catch(function (err) { toast(err.message, true); });
+  }
+
+  $('#settings-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var f = e.target;
+    var body = {
+      smtp_host: f.smtp_host.value.trim(),
+      smtp_port: f.smtp_port.value.trim(),
+      smtp_user: f.smtp_user.value.trim(),
+      smtp_from: f.smtp_from.value.trim(),
+      smtp_ssl: f.smtp_ssl.checked,
+      registration_open: f.registration_open.checked,
+      watermark_default: f.watermark_default.checked,
+      site_notice: f.site_notice.value.trim()
+    };
+    if (f.smtp_pass.value) body.smtp_pass = f.smtp_pass.value;
+    $('#save-state').textContent = '保存中…';
+    request('/api/center/settings', { method: 'POST', body: body }).then(function () {
+      $('#save-state').textContent = '已保存';
+      f.smtp_pass.value = '';
+      loadSettings();
+      setTimeout(function () { $('#save-state').textContent = ''; }, 2400);
+    }).catch(function (err) {
+      $('#save-state').textContent = '';
+      toast(err.message, true);
+    });
+  });
+
+  /* ------------------------------ 事件绑定 ------------------------------ */
+  function switchTab(name) {
+    $$('.nav-item').forEach(function (b) {
+      b.classList.toggle('is-on', b.dataset.tab === name);
+    });
+    $$('.pane').forEach(function (p) {
+      p.classList.toggle('is-on', p.dataset.pane === name);
+    });
+    if (name === 'overview') loadOverview();
+    if (name === 'licenses') loadLicenses();
+    if (name === 'developers') loadDevelopers();
+    if (name === 'logs') loadLogs();
+    if (name === 'settings') loadSettings();
+  }
+
+  $$('.nav-item').forEach(function (b) {
+    b.addEventListener('click', function () { switchTab(b.dataset.tab); });
+  });
+  $$('[data-goto]').forEach(function (b) {
+    b.addEventListener('click', function () { switchTab(b.dataset.goto); });
+  });
+
+  $('#btn-refresh').addEventListener('click', loadOverview);
+  $('#lic-refresh').addEventListener('click', function () { licState.page = 1; loadLicenses(); });
+  $('#dev-refresh').addEventListener('click', function () { devState.page = 1; loadDevelopers(); });
+  $('#log-refresh').addEventListener('click', function () { logState.page = 1; loadLogs(); });
+
+  var qTimer = null;
+  $('#lic-q').addEventListener('input', function (e) {
+    clearTimeout(qTimer);
+    qTimer = setTimeout(function () { licState.q = e.target.value.trim(); licState.page = 1; loadLicenses(); }, 320);
+  });
+  $('#dev-q').addEventListener('input', function (e) {
+    clearTimeout(qTimer);
+    qTimer = setTimeout(function () { devState.q = e.target.value.trim(); devState.page = 1; loadDevelopers(); }, 320);
+  });
+  $('#log-action').addEventListener('change', function (e) {
+    logState.action = e.target.value; logState.page = 1; loadLogs();
+  });
+
+  $$('#lic-tabs .tab').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $$('#lic-tabs .tab').forEach(function (x) { x.classList.remove('is-on'); });
+      b.classList.add('is-on');
+      licState.status = b.dataset.status; licState.page = 1; loadLicenses();
+    });
+  });
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-act]');
+    if (t && t.dataset.id) { doLicenseAction(t.dataset.id, t.dataset.act); return; }
+
+    var open = e.target.closest('[data-open]');
+    if (open) { openDrawer(open.dataset.open); return; }
+
+    var dev = e.target.closest('[data-dev]');
+    if (dev) { doDevAction(dev.dataset.id, dev.dataset.dev, dev); return; }
+
+    var pg = e.target.closest('[data-page]');
+    if (pg && !pg.disabled) {
+      var pane = pg.closest('.pane').dataset.pane;
+      var n = Number(pg.dataset.page);
+      if (pane === 'licenses') { licState.page = n; loadLicenses(); }
+      if (pane === 'developers') { devState.page = n; loadDevelopers(); }
+      if (pane === 'logs') { logState.page = n; loadLogs(); }
+      return;
+    }
+
+    var cp = e.target.closest('[data-copy]');
+    if (cp) {
+      var txt = cp.dataset.copy;
+      if (navigator.clipboard) navigator.clipboard.writeText(txt);
+      toast('已复制授权码');
+      return;
+    }
+
+    var nt = e.target.closest('[data-note]');
+    if (nt) {
+      var nid = currentDrawerId();
+      var nval = $('#d-note') ? $('#d-note').value : '';
+      if (nid) {
+        request('/api/center/licenses/' + nid, { method: 'PATCH', body: { action: 'note', admin_note: nval } })
+          .then(function () { toast('备注已保存'); loadLicenses(); })
+          .catch(function (err) { toast(err.message, true); });
+      }
+      return;
+    }
+
+    var wm = e.target.closest('[data-watermark]');
+    if (wm) {
+      var lid = currentDrawerId();
+      if (lid) request('/api/center/licenses/' + lid, { method: 'PATCH',
+        body: { action: 'watermark', watermark: wm.dataset.watermark === '1' } })
+        .then(function () { toast('署名设置已更新'); openDrawer(lid); loadLicenses(); });
+      return;
+    }
+
+    var rg = e.target.closest('[data-regenerate]');
+    if (rg) {
+      var rid = currentDrawerId();
+      if (rid && confirm('旧授权码立即失效，已安装的站点需要在后台重新激活。继续？')) {
+        doLicenseAction(rid, 'regenerate');
+      }
+      return;
+    }
+  });
+
+  function currentDrawerId() {
+    var row = $('#drawer-body').dataset.id;
+    return row ? Number(row) : null;
+  }
+
+  // 记录抽屉当前 id
+  var _openDrawer = openDrawer;
+  openDrawer = function (id) {
+    $('#drawer-body').dataset.id = id;
+    _openDrawer(id);
+  };
+
+  $('#drawer-close').addEventListener('click', closeDrawer);
+  $('#scrim').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('#drawer').hidden) closeDrawer();
+  });
+
+  $('#logout').addEventListener('click', function (e) {
+    e.preventDefault();
+    fetch('/api/admin/logout', { method: 'POST' }).finally(function () {
+      location.href = '/admin/login';
+    });
+  });
+
+  switchTab('overview');
+})();
+</script>
+</body>
+</html>

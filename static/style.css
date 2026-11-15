@@ -720,6 +720,17 @@ tbody tr:hover { background: #fafbfc; }
   padding: 40px 20px 8px;
   flex: 1 0 auto;
 }
+.dev-notice {
+  margin-bottom: 16px;
+  padding: 9px 13px;
+  background: var(--accent-soft);
+  border: 1px solid #d8e4fb;
+  border-left: 2px solid var(--accent);
+  border-radius: 3px;
+  font-size: 13px;
+  color: var(--ink-2);
+  white-space: pre-line;
+}
 .dev-head {
   display: flex;
   align-items: flex-end;
@@ -727,8 +738,7 @@ tbody tr:hover { background: #fafbfc; }
   gap: 16px;
   flex-wrap: wrap;
   margin-bottom: 22px;
-}
-.dev-head h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.2px; }
+}.dev-head h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.2px; }
 .dev-sub { margin: 0; font-size: 13px; color: var(--muted); }
 .dev-head-actions { display: flex; gap: 8px; }
 

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Natsuko 授权中心 · 解压码提取站</title>
   <meta name="description" content="给压缩包配一把公钥：解压码留在自己的服务器上，包里只放公钥和一张说明页。换钥匙、限次数、随时停用，老包不用重发。">
-  <meta name="theme-color" content="#f3efe5">
+  <meta name="theme-color" content="#ffffff">
   <meta property="og:title" content="Natsuko 授权中心 · 解压码提取站">
   <meta property="og:description" content="解压码不该躺在 txt 里。公钥分发、限次提取、24 小时重复查看。">
   <meta property="og:type" content="website">
@@ -78,7 +78,7 @@
             <path d="M4 20c6-1 10-5 13-11"/>
             <path d="M13 6l4 3-1 5"/>
           </svg>
-          就像一张便签
+          公钥不是密码，谁看到都没关系
         </span>
       </div>
     </div>
@@ -213,7 +213,7 @@
           <a class="btn btn-primary" href="{{ '/dev' if dev_logged_in else '/dev/register' }}">
             {{ '查看我的授权' if dev_logged_in else '现在去申请' }}
           </a>
-          <p>已有账号？<a href="/dev/login" style="color:var(--accent);border-bottom:1px solid currentColor">直接登录</a></p>
+          <p>已有账号？<a class="inline" href="/dev/login">直接登录</a></p>
         </div>
       </div>
     </div>
