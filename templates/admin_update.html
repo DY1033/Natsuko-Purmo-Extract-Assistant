@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}在线更新 - {{ site.name }}{% endblock %}
+{% block head %}
+<style>
+  .upd-head{background:var(--card);border-bottom:1px solid var(--line)}
+  .upd-head .inner{max-width:1000px;margin:auto;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .upd-head .brand{font-size:17px;font-weight:700}.upd-head .brand em{font-style:normal;font-size:12px;color:var(--muted);font-weight:400;margin-left:8px}
+  .upd-main{max-width:1000px;margin:26px auto;padding:0 24px 60px}
+  .upd-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px;margin-bottom:16px}
+  .upd-card h2{margin:0 0 14px;font-size:16px}
+  .ver-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .ver-tag{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;font-weight:700;color:var(--primary)}
+  .ver-arrow{color:var(--muted);font-size:18px}
+  .ver-new{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;font-weight:700;color:#0a7f4b}
+  .pill{display:inline-block;padding:3px 10px;border-radius:99px;background:#e8f7ef;color:#0a7f4b;font-size:12px;font-weight:600}
+  .pill.gray{background:#eef0f3;color:#667}
+  .notes{white-space:pre-wrap;line-height:1.75;font-size:14px;color:#374151;background:#f7f8fa;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:16px 0}
+  .meta{font-size:12px;color:var(--muted);font-family:ui-monospace,monospace;word-break:break-all}
+  .upd-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px}
+  .upd-actions .btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .upd-status{margin-top:16px;padding:12px 14px;border-radius:8px;background:#f7f8fa;border:1px solid var(--line);font-size:13px;line-height:1.7;display:none}
+  .upd-status.show{display:block}.upd-status.ok{background:#eefaf2;border-color:#bfe6cf}.upd-status.bad{background:#fff1f1;border-color:#f3c2c2}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .muted{color:var(--muted)}
+</style>
+{% endblock %}
+{% block body %}
+<header class="upd-head">
+  <div class="inner">
+    <div class="brand">在线更新 <em>从 Natsuko 授权中心安全获取官方版本</em></div>
+    <div class="actions"><a class="btn sm" href="/admin">返回后台</a></div>
+  </div>
+</header>
+
+<main class="upd-main">
+  <section class="upd-card">
+    <h2>当前版本</h2>
+    <div class="ver-row">
+      <span class="ver-tag">v{{ current_version }}</span>
+      <span class="pill" id="ver-state">检查中…</span>
+      <span class="muted" id="check-time"></span>
+    </div>
+    <div class="upd-status" id="status"></div>
+    <div id="latest-box"></div>
+  </section>
+
+  <section class="upd-card">
+    <h2>更新记录</h2>
+    <div id="history"></div>
+  </section>
+</main>
+
+<script>
+(function(){
+  'use strict';
+  var $ = function(s){return document.querySelector(s);};
+  var esc = function(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');};
+  var busy = false;
+  var timer = null;
+
+  function status(msg, kind){
+    var el = $('#status');
+    el.textContent = msg || '';
+    el.className = 'upd-status' + (msg ? ' show' : '') + (kind ? ' ' + kind : '');
+  }
+
+  function fmtSize(n){
+    n = Number(n)||0;
+    return n > 1048576 ? (n/1048576).toFixed(1)+' MB' : (n/1024).toFixed(0)+' KB';
+  }
+
+  function render(d){
+    var last = d.last_result || {};
+    if (last.running || d.running) {
+      busy = true;
+      $('#ver-state').textContent = '更新中';
+      status(last.message || '正在更新…');
+      if (!timer) timer = setInterval(load, 1800);
+      return;
+    }
+    busy = false;
+    if (timer) { clearInterval(timer); timer = null; }
+    if (last.ok === false) status(last.message, 'bad');
+    else if (last.ok === true) status(last.message, 'ok');
+
+    var l = d.latest || {};
+    if (!l.ok) {
+      $('#ver-state').textContent = '检查失败';
+      $('#ver-state').className = 'pill gray';
+      $('#check-time').textContent = l.error || '';
+      $('#latest-box').innerHTML = '';
+      return;
+    }
+    if (l.has_update) {
+      $('#ver-state').textContent = '发现新版本';
+      $('#check-time').textContent = '更新时间 ' + esc((l.server_time||'').replace('T',' ').slice(0,16));
+      $('#latest-box').innerHTML =
+        '<div class="ver-row"><span class="ver-tag">v'+esc(d.current_version)+'</span>'
+        + '<span class="ver-arrow">→</span><span class="ver-new">v'+esc(l.version)+'</span>'
+        + '<span class="muted">'+fmtSize(l.size)+'</span></div>'
+        + '<div class="notes">'+esc(l.notes || '（暂无更新说明）')+'</div>'
+        + '<div class="meta">SHA-256 '+esc(l.sha256||'')+'</div>'
+        + '<div class="upd-actions"><button class="btn primary" id="btn-apply">一键更新并安装</button>'
+        + '<span class="muted">安装前自动备份程序文件，数据不会丢失</span></div>';
+      $('#btn-apply').addEventListener('click', function(){
+        if (!confirm('确定安装 v'+l.version+'？\n\n安装过程会自动校验官方签名、备份现有程序，完成后服务将自动重启。')) return;
+        this.disabled = true;
+        fetch('/api/update/apply', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({version:l.version})})
+          .then(function(r){return r.json().then(function(d){return {ok:r.ok, d:d};});})
+          .then(function(res){
+            if (!res.ok || res.d.ok === false) { status(res.d.error || '启动失败', 'bad'); load(); return; }
+            status('已开始更新，请稍候…');
+            timer = setInterval(load, 1800);
+          }).catch(function(e){ status('请求失败：'+e.message, 'bad'); });
+      });
+    } else {
+      $('#ver-state').textContent = '已是最新';
+      $('#check-time').textContent = '检查时间 ' + esc((l.server_time||'').replace('T',' ').slice(0,16));
+      $('#latest-box').innerHTML = '';
+    }
+
+    var h = d.history || [];
+    $('#history').innerHTML = h.length ? '<table><thead><tr><th>时间</th><th>从</th><th>到</th><th>文件</th><th>备份</th></tr></thead><tbody>'
+      + h.map(function(x){return '<tr><td class="muted">'+esc((x.at||'').replace('T',' ').slice(0,16))+'</td>'
+        + '<td class="mono">v'+esc(x.from)+'</td><td class="mono">v'+esc(x.to)+'</td><td>'+esc(x.files||0)+'</td>'
+        + '<td class="mono muted">'+esc(x.backup||'—')+'</td></tr>';}).join('')
+      + '</tbody></table>' : '<p class="muted">还没有在线更新记录。</p>';
+  }
+
+  function load(){
+    fetch('/api/update/status').then(function(r){return r.json();}).then(function(d){
+      if (!d.ok) { status(d.error || '状态获取失败', 'bad'); return; }
+      render(d);
+      // 更新完成后版本号会变：自动重载页面显示新版本
+      if (!busy && d.last_result && d.last_result.ok === true && d.last_result.result && d.last_result.result.version !== d.current_version) {
+        setTimeout(function(){location.reload();}, 1200);
+      }
+    }).catch(function(e){ if (!busy) status('无法连接站点：'+e.message, 'bad'); });
+  }
+
+  load();
+})();
+</script>
+{% endblock %}

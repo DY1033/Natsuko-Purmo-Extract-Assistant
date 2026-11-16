@@ -18,6 +18,7 @@ import sqlite3
 import secrets
 import hashlib
 import threading
+import time
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 from urllib.parse import quote
@@ -42,7 +43,7 @@ SECRET_PATH = os.path.join(DATA_DIR, "secret.key")
 DEFAULT_ADMIN_PASSWORD = "admin123"
 SESSION_HOURS = 12
 
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.2.0"
 INSTALL_FLAG = os.path.join(DATA_DIR, "installed.json")
 
 # 版权署名：发行版固定保留，后台与安装向导都无法关闭
@@ -148,6 +149,12 @@ except Exception:  # pragma: no cover
     license_client = None
 CLIENT_LICENSE_MODE = bool(license_client) and not LICENSE_SERVER_MODE
 
+# 在线更新（授权服务端签发包体，这里只内置公钥验签）
+try:
+    import updater
+except Exception:  # pragma: no cover
+    updater = None
+
 
 @app.before_request
 def _redirect_to_install():
@@ -193,6 +200,7 @@ _SERVER_KEEP_PREFIX = (
     "/static/",
     "/api/dev/",
     "/api/license/",
+    "/api/update/",
     "/api/center/",
     "/api/admin/login",
     "/api/admin/logout",
@@ -550,6 +558,125 @@ def admin_login_m():
     if session.get("admin"):
         return redirect("/manage")
     return render_template("login.html")
+
+
+# ----------------------------------------------------------------------------
+# 在线更新：后台独立页面 + 一键安装（仅安装版可用）
+# ----------------------------------------------------------------------------
+def _license_state() -> dict:
+    if not license_client:
+        return {}
+    try:
+        return license_client._read()
+    except Exception:
+        return {}
+
+
+def _update_lock(acquire: bool):
+    """跨平台互斥锁：同一时刻只允许一个更新任务运行。"""
+    path = os.path.join(DATA_DIR, "updates", "run.lock")
+    if acquire:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            age = time.time() - os.path.getmtime(path)
+        except OSError:
+            age = 0
+        if age > 600:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            return True
+        except OSError:
+            return False
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+    return True
+
+
+def _update_task(info: dict) -> None:
+    try:
+        updater.set_result(DATA_DIR, {
+            "ok": None, "running": True, "message": "正在下载更新包…", "ts": now_iso(),
+        })
+        raw = updater.download(LICENSE_SERVER_URL.rstrip("/") + info["download_url"])
+        updater.set_result(DATA_DIR, {
+            "ok": None, "running": True, "message": "正在校验签名并备份现有程序…", "ts": now_iso(),
+        })
+        res = updater.install(raw, info, BASE_DIR, DATA_DIR, APP_VERSION)
+        updater.set_result(DATA_DIR, {
+            "ok": True, "running": False, "message": "更新完成，服务正在重启…",
+            "result": res, "ts": now_iso(),
+        })
+        time.sleep(2)  # 让轮询请求拿到成功结果，再通知 master 重载
+        if not updater.reload_master():
+            updater.set_result(DATA_DIR, {
+                "ok": True, "running": False,
+                "message": "文件已更新，请重启站点服务后生效（非 gunicorn 模式）。",
+                "result": res, "ts": now_iso(),
+            })
+    except Exception as exc:
+        updater.set_result(DATA_DIR, {
+            "ok": False, "running": False,
+            "message": "更新失败：" + str(exc)[:220], "ts": now_iso(),
+        })
+    finally:
+        _update_lock(False)
+
+
+@app.route("/admin/update")
+@login_required
+def admin_update_page():
+    if LICENSE_SERVER_MODE or not updater:
+        abort(404)
+    return render_template("admin_update.html", current_version=APP_VERSION,
+                           update_server=LICENSE_SERVER_URL)
+
+
+@app.route("/api/update/status")
+@login_required
+def api_update_status():
+    if LICENSE_SERVER_MODE or not updater:
+        return jsonify(ok=False, error="仅安装版支持在线更新"), 404
+    latest = updater.check(LICENSE_SERVER_URL, APP_VERSION, _license_state())
+    return jsonify(
+        ok=True, current_version=APP_VERSION,
+        latest=latest if latest.get("ok") else {"ok": False, "error": latest.get("error", "检查失败")},
+        last_result=updater.get_result(DATA_DIR),
+        history=updater.history(DATA_DIR),
+        running=os.path.exists(os.path.join(DATA_DIR, "updates", "run.lock")),
+    )
+
+
+@app.route("/api/update/apply", methods=["POST"])
+@login_required
+def api_update_apply():
+    if LICENSE_SERVER_MODE or not updater:
+        return jsonify(ok=False, error="仅安装版支持在线更新"), 404
+    if os.path.exists(os.path.join(DATA_DIR, "updates", "run.lock")):
+        return jsonify(ok=False, error="已有更新任务正在进行"), 409
+
+    latest = updater.check(LICENSE_SERVER_URL, APP_VERSION, _license_state())
+    if not latest.get("ok"):
+        return jsonify(ok=False, error=latest.get("error", "无法检查更新")), 502
+    if not latest.get("has_update"):
+        return jsonify(ok=False, error="当前已是最新版本"), 400
+    want = str((request.get_json(silent=True) or {}).get("version") or "")
+    if want and want != latest["version"]:
+        return jsonify(ok=False, error="版本已变化，请刷新页面后重试"), 409
+    if not latest.get("download_url", "").startswith("/api/update/download/"):
+        return jsonify(ok=False, error="下载地址不合法"), 400
+    if not _update_lock(True):
+        return jsonify(ok=False, error="已有更新任务正在进行"), 409
+
+    threading.Thread(target=_update_task, args=(latest,), daemon=True).start()
+    return jsonify(ok=True, version=latest["version"], message="已开始更新")
 
 
 @app.route("/healthz")

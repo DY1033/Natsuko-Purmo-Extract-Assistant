@@ -7,6 +7,7 @@
     <div class="site">{{ site.name }} <em>管理后台</em></div>
     <div class="actions">
       <a class="btn sm" href="/" target="_blank" rel="noopener">查看前台</a>
+      {% if client_mode %}<a class="btn sm" href="/admin/update">在线更新</a>{% endif %}
       {% if license_mode %}<a class="btn sm" href="/admin/licenses">授权管理</a>{% endif %}
       <button class="btn sm" id="btn-settings">设置</button>
       <button class="btn sm" id="btn-pwd">修改密码</button>

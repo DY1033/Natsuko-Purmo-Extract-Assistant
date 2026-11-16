@@ -32,6 +32,10 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zm-7 9a7 7 0 0114 0"/></svg>
       开发者
     </button>
+    <button class="nav-item" data-tab="releases">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4-8 4-8-4 8-4zm-8 8l8 4 8-4M4 15l8 4 8-4"/></svg>
+      版本发布
+    </button>
     <button class="nav-item" data-tab="logs">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6zM9 10h6M9 14h6"/></svg>
       事件日志
@@ -172,6 +176,62 @@
       </table>
     </div>
     <div class="pager" id="dev-pager"></div>
+  </section>
+
+  <!-- ============ 版本发布 ============ -->
+  <section class="pane" data-pane="releases">
+    <header class="pane-head">
+      <div>
+        <h1>版本发布</h1>
+        <p class="pane-sub">上传的包体由服务端私有存储，发布时自动计算 SHA-256 并用 Ed25519 签名，客户端更新前强制验签</p>
+      </div>
+      <button class="btn btn-sm" id="rel-refresh">刷新列表</button>
+    </header>
+
+    <div class="split split-wide">
+      <form class="card form-card" id="rel-form">
+        <fieldset>
+          <legend>发布新版本</legend>
+          <div class="grid-2">
+            <label class="field">
+              <span>版本号（x.y.z，必须大于客户端当前版本）</span>
+              <input class="input" name="version" placeholder="1.2.0" pattern="\d+\.\d+\.\d+" required>
+            </label>
+            <label class="field">
+              <span>安装包（.zip，最大 32 MB，需包含 app.py）</span>
+              <input class="input" name="package" type="file" accept=".zip" required>
+            </label>
+          </div>
+          <label class="field">
+            <span>更新说明（会显示在用户后台的更新页面）</span>
+            <textarea class="input" name="notes" rows="4" maxlength="1000" placeholder="逐行说明本次更新内容"></textarea>
+          </label>
+          <p class="hint">发布后会自动停用旧版本；包体内禁止包含 data/、venv/ 和 license_server.py。</p>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">发布版本</button>
+            <span class="hint" id="rel-state"></span>
+          </div>
+        </fieldset>
+      </form>
+
+      <section class="card">
+        <header class="card-head"><h2>签名公钥</h2></header>
+        <p class="hint" style="margin:0 0 8px">客户端内置此公钥验证官方包体。私钥仅存于本服务器，不随代码分发。</p>
+        <div class="mono" id="rel-pubkey" style="word-break:break-all;font-size:12px">—</div>
+      </section>
+    </div>
+
+    <div class="table-wrap" style="margin-top:16px">
+      <table class="table" id="rel-table">
+        <thead>
+          <tr>
+            <th>版本</th><th>状态</th><th class="num">大小</th><th>更新时间</th>
+            <th class="num">下载</th><th>SHA-256</th><th class="right">操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </section>
 
   <!-- ============ 日志 ============ -->
@@ -615,6 +675,64 @@
       }).catch(function (err) { toast(err.message, true); });
   }
 
+  /* ------------------------------ 版本发布 ------------------------------ */
+  function loadReleases() {
+    request('/api/center/releases').then(function (d) {
+      $('#rel-pubkey').textContent = d.public_key || '—';
+      var tb = $('#rel-table tbody');
+      tb.innerHTML = d.items.length ? d.items.map(function (it) {
+        return '<tr>'
+          + '<td><b>v' + esc(it.version) + '</b>' + (it.notes ? '<small class="cell-sub">' + esc(it.notes.split('\n')[0].slice(0, 32)) + '</small>' : '') + '</td>'
+          + '<td>' + (it.enabled ? '<span class="pill on">已发布</span>' : '<span class="pill">已停用</span>') + '</td>'
+          + '<td class="num">' + Math.round(it.size / 1024) + ' KB</td>'
+          + '<td class="muted">' + esc(it.published_at) + '</td>'
+          + '<td class="num">' + it.downloads + '</td>'
+          + '<td class="mono muted" title="' + esc(it.sha256) + '">' + esc(it.sha256.slice(0, 16)) + '…</td>'
+          + '<td class="right">'
+          + (it.enabled ? '<button class="btn btn-xs" data-rel="disable" data-id="' + it.id + '">停用</button>'
+            : '<button class="btn btn-xs" data-rel="enable" data-id="' + it.id + '">启用</button>')
+          + ' <button class="btn btn-xs btn-bad" data-rel="delete" data-id="' + it.id + '">删除</button>'
+          + '</td></tr>';
+      }).join('') : '<tr><td colspan="7" class="empty">还没有发布过版本。</td></tr>';
+    }).catch(function (err) { toast(err.message, true); });
+  }
+
+  $('#rel-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var f = e.target;
+    if (!f.version.value.trim() || !f.package.files.length) return;
+    var body = new FormData();
+    body.append('version', f.version.value.trim());
+    body.append('notes', f.notes.value.trim());
+    body.append('package', f.package.files[0]);
+    $('#rel-state').textContent = '上传并签名中…';
+    fetch('/api/center/releases', { method: 'POST', body: body })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        $('#rel-state').textContent = '';
+        if (!res.ok || res.d.ok === false) throw new Error(res.d.error || '发布失败');
+        toast('v' + res.d.version + ' 已发布');
+        f.reset();
+        loadReleases();
+      }).catch(function (err) { $('#rel-state').textContent = ''; toast(err.message, true); });
+  });
+
+  function doReleaseAction(id, action) {
+    if (action === 'delete' && !confirm('删除后用户将无法再下载此版本，确定？')) return;
+    var opt = { method: action === 'delete' ? 'DELETE' : 'PATCH' };
+    if (action !== 'delete') {
+      opt.headers = { 'Content-Type': 'application/json' };
+      opt.body = JSON.stringify({ action: action });
+    }
+    fetch('/api/center/releases/' + id, opt)
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok || res.d.ok === false) throw new Error(res.d.error || '操作失败');
+        toast(action === 'enable' ? '版本已启用' : action === 'disable' ? '版本已停用' : '版本已删除');
+        loadReleases();
+      }).catch(function (err) { toast(err.message, true); });
+  }
+
   /* ------------------------------ 设置 ------------------------------ */
   function loadSettings() {
     request('/api/center/settings').then(function (d) {
@@ -672,6 +790,7 @@
     if (name === 'overview') loadOverview();
     if (name === 'licenses') loadLicenses();
     if (name === 'developers') loadDevelopers();
+    if (name === 'releases') loadReleases();
     if (name === 'logs') loadLogs();
     if (name === 'settings') loadSettings();
   }
@@ -687,6 +806,7 @@
   $('#lic-refresh').addEventListener('click', function () { licState.page = 1; loadLicenses(); });
   $('#dev-refresh').addEventListener('click', function () { devState.page = 1; loadDevelopers(); });
   $('#log-refresh').addEventListener('click', function () { logState.page = 1; loadLogs(); });
+  $('#rel-refresh').addEventListener('click', loadReleases);
 
   var qTimer = null;
   $('#lic-q').addEventListener('input', function (e) {
@@ -718,6 +838,9 @@
 
     var dev = e.target.closest('[data-dev]');
     if (dev) { doDevAction(dev.dataset.id, dev.dataset.dev, dev); return; }
+
+    var rel = e.target.closest('[data-rel]');
+    if (rel) { doReleaseAction(rel.dataset.id, rel.dataset.rel); return; }
 
     var pg = e.target.closest('[data-page]');
     if (pg && !pg.disabled) {

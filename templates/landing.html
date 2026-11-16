@@ -73,6 +73,9 @@
             <span class="key-copy-hint" id="key-hint">点击复制</span>
           </span>
         </button>
+        <div class="key-flow" aria-label="分发流程">
+          <span>压缩包</span><i>→</i><span>公钥</span><i>→</i><span>你的站点</span>
+        </div>
         <span class="key-annot">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M4 20c6-1 10-5 13-11"/>
@@ -315,6 +318,22 @@
             </div>
           </details>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 收尾 CTA -->
+  <section class="final-cta">
+    <div class="wrap final-cta-inner reveal">
+      <div>
+        <p class="final-eyebrow">READY WHEN YOU ARE</p>
+        <h2>把解压码，<br>收回到自己手里。</h2>
+      </div>
+      <div class="final-actions">
+        <p>几分钟就能跑起来。授权免费，包体开源，老包不用重发。</p>
+        <a class="btn btn-primary btn-lg" href="{{ '/dev' if dev_logged_in else '/dev/register' }}">
+          {{ '进入控制台' if dev_logged_in else '申请授权 →' }}
+        </a>
       </div>
     </div>
   </section>

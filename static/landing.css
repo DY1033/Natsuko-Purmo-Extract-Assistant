@@ -839,3 +839,165 @@ em { font-style: normal; }
 }
 
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ==========================================================================
+   视觉升级：深色蓝图首屏 + 发光终端卡 + 收尾行动区
+   （追加在基础工程白样式之后，只覆盖首屏相关规则）
+   ========================================================================== */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 0;
+  background:
+    radial-gradient(900px 420px at 78% 8%, rgba(31, 94, 255, 0.24), transparent 60%),
+    radial-gradient(600px 320px at 8% 90%, rgba(31, 94, 255, 0.10), transparent 65%),
+    #10141c;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(180deg, #000 0%, transparent 92%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 92%);
+  pointer-events: none;
+}
+
+.hero .wrap { position: relative; z-index: 1; }
+
+.hero .eyebrow { color: #7ea2ff; }
+.hero .eyebrow::before { background: #7ea2ff; }
+
+.hero h1 { color: #f6f8ff; }
+.hero h1 em {
+  color: #7ea2ff;
+  text-shadow: 0 0 34px rgba(126, 162, 255, 0.35);
+}
+
+.hero-lead { color: #b6bfd0; }
+.hero-lead strong { color: #fff; }
+
+.hero-actions .btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 10px 26px rgba(31, 94, 255, 0.32);
+}
+.hero-actions .btn-primary:hover { background: #3975ff; border-color: #3975ff; }
+.hero-actions .btn-ghost { color: #d7ddea; border-color: #3a4355; }
+.hero-actions .btn-ghost:hover { color: #fff; border-color: #6f7b91; background: rgba(255, 255, 255, 0.06); }
+
+.hero-meta { color: #7e889b; }
+.hero-meta span::before { background: #7ea2ff; }
+
+.key-scene { position: relative; }
+.key-scene::before {
+  content: "";
+  position: absolute;
+  width: 340px;
+  height: 340px;
+  right: -34px;
+  top: -30px;
+  border: 1px dashed rgba(126, 162, 255, 0.22);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.key-scene::after {
+  content: "";
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  right: 26px;
+  top: 30px;
+  border: 1px solid rgba(126, 162, 255, 0.13);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.key-note {
+  position: relative;
+  z-index: 1;
+  background: #fbfcff;
+  border-color: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(126, 162, 255, 0.16);
+}
+.key-note:hover { box-shadow: 0 34px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(126, 162, 255, 0.3); }
+.key-label { color: #8791a3; }
+.key-value { color: var(--ink); }
+.key-foot { color: #8791a3; }
+.key-copy-hint { color: var(--accent-deep); }
+
+.key-flow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+  padding: 10px 14px;
+  border: 1px solid rgba(126, 162, 255, 0.22);
+  border-radius: var(--radius);
+  background: rgba(126, 162, 255, 0.06);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #c6d2ea;
+  position: relative;
+  z-index: 1;
+}
+.key-flow i { color: #7ea2ff; font-style: normal; }
+
+.key-annot { color: #8791a3; }
+.key-annot svg { color: #7ea2ff; }
+
+.final-cta {
+  background: var(--dark);
+  color: #fff;
+  padding: 68px 0;
+  position: relative;
+  overflow: hidden;
+}
+.final-cta::before {
+  content: "";
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  right: -80px;
+  top: -260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(31, 94, 255, 0.25), transparent 62%);
+  pointer-events: none;
+}
+.final-cta-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 36px;
+  flex-wrap: wrap;
+}
+.final-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: #7ea2ff;
+  margin-bottom: 14px;
+}
+.final-cta h2 { font-size: clamp(28px, 3.6vw, 46px); line-height: 1.22; color: #fff; }
+.final-actions p { color: #aab4c6; font-size: 14px; margin-bottom: 18px; }
+.btn.btn-lg { height: 46px; padding: 0 24px; font-size: 15px; }
+.final-actions .btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.final-actions .btn-primary:hover { background: #3975ff; border-color: #3975ff; }
+
+@media (max-width: 900px) {
+  .key-scene::before, .key-scene::after { display: none; }
+  .final-cta { padding: 52px 0; }
+}
