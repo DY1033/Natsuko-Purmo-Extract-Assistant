@@ -645,10 +645,17 @@ def api_update_status():
     if LICENSE_SERVER_MODE or not updater:
         return jsonify(ok=False, error="仅安装版支持在线更新"), 404
     latest = updater.check(LICENSE_SERVER_URL, APP_VERSION, _license_state())
+    last = updater.get_result(DATA_DIR)
+    # 更新已经落地时（结果版本 == 当前运行版本），"服务正在重启…"只是瞬时过程消息，
+    # 必须规范成终态，否则旧版页面会永久停留在那条消息上。
+    if (last.get("ok") is True and last.get("running") is not True
+            and (last.get("result") or {}).get("version") == APP_VERSION):
+        last["settled"] = True
+        last["message"] = "最近一次更新成功：已安装 v" + APP_VERSION + "，服务运行正常"
     return jsonify(
         ok=True, current_version=APP_VERSION,
         latest=latest if latest.get("ok") else {"ok": False, "error": latest.get("error", "检查失败")},
-        last_result=updater.get_result(DATA_DIR),
+        last_result=last,
         history=updater.history(DATA_DIR),
         running=os.path.exists(os.path.join(DATA_DIR, "updates", "run.lock")),
     )

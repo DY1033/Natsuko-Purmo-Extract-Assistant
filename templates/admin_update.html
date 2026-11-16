@@ -83,7 +83,13 @@
     }
     busy = false;
     if (timer) { clearInterval(timer); timer = null; }
+    // 更新已落地：结果版本 == 当前版本，说明"正在重启"只是瞬时消息，显示终态即可。
+    // 后端也会把这种情况标记为 settled，这里前端再独立判断一次作双保险。
+    var settled = last.ok === true && last.result && last.result.version === d.current_version;
     if (last.ok === false) status(last.message, 'bad');
+    else if (settled || last.settled) {
+      status((last.message && !/重启/.test(last.message) ? last.message : '最近一次更新成功：已安装 v' + d.current_version + '，服务运行正常'), 'ok');
+    }
     else if (last.ok === true) status(last.message, 'ok');
 
     var l = d.latest || {};
@@ -134,9 +140,14 @@
     fetch('/api/update/status').then(function(r){return r.json();}).then(function(d){
       if (!d.ok) { status(d.error || '状态获取失败', 'bad'); return; }
       render(d);
-      // 更新完成后版本号会变：自动重载页面显示新版本
-      if (!busy && d.last_result && d.last_result.ok === true && d.last_result.result && d.last_result.result.version !== d.current_version) {
-        setTimeout(function(){location.reload();}, 1200);
+      // 更新完成后 gunicorn 会重载 worker；若后端返回的版本仍落后于已落地的结果，
+      // 说明本页连的是旧 worker，重载一次即可。settled 时不再反复 reload，避免死循环。
+      if (!busy && d.last_result && d.last_result.ok === true && d.last_result.result
+          && d.last_result.result.version !== d.current_version && !d.last_result.settled) {
+        if (!sessionStorage.getItem('upd_reloaded_' + d.last_result.result.version)) {
+          sessionStorage.setItem('upd_reloaded_' + d.last_result.result.version, '1');
+          setTimeout(function(){location.reload();}, 1200);
+        }
       }
     }).catch(function(e){ if (!busy) status('无法连接站点：'+e.message, 'bad'); });
   }
