@@ -24,8 +24,12 @@
 }
 
 /* ==========================================================================
-   夜间主题：覆盖 :root 变量 + 少量硬编码浅色，切换按钮见 base.html
+   多主题：在 :root(极光白) 基础上，用 data-theme 覆盖配色变量。
+   暗色系主题(dark / ocean)额外复用一组硬编码浅底覆盖，见下方分组选择器。
+   主题选择器面板见 base.html。
    ========================================================================== */
+
+/* ---- 曜石黑（暗） ---- */
 [data-theme="dark"] {
   color-scheme: dark;
   --bg: #12151b;
@@ -45,52 +49,149 @@
   --danger: #ff8983;
   --danger-bg: #3a2120;
 }
-/* 硬编码白底/浅底在夜间下的覆盖 */
-[data-theme="dark"] .btn { background: var(--panel); }
-[data-theme="dark"] .btn:hover { background: #262e39; border-color: var(--line-2); }
-[data-theme="dark"] .btn:active { background: #2e3743; }
+
+/* ---- 森林绿（明亮） ---- */
+[data-theme="forest"] {
+  --bg: #f1f6f2;
+  --panel: #ffffff;
+  --ink: #15251b;
+  --ink-2: #3d5a48;
+  --muted: #6d8876;
+  --line: #d8e7dc;
+  --line-2: #c1d9c7;
+  --accent: #157f47;
+  --accent-dark: #116539;
+  --accent-soft: #e6f4ea;
+  --ok: #0f7a55;
+  --ok-bg: #edf7f1;
+  --warn: #8a5b00;
+  --warn-bg: #fbf4e4;
+  --danger: #b3261e;
+  --danger-bg: #fdf1f0;
+}
+
+/* ---- 暖阳橙（明亮） ---- */
+[data-theme="amber"] {
+  --bg: #faf5ee;
+  --panel: #ffffff;
+  --ink: #2c2118;
+  --ink-2: #5c4836;
+  --muted: #8b7862;
+  --line: #ece1d1;
+  --line-2: #ddcdb6;
+  --accent: #b45309;
+  --accent-dark: #92400e;
+  --accent-soft: #fdf0de;
+  --ok: #2f7d4f;
+  --ok-bg: #eef6ef;
+  --warn: #9a6200;
+  --warn-bg: #fdf4e2;
+  --danger: #ad2e24;
+  --danger-bg: #fcf0ee;
+}
+
+/* ---- 玫瑰红（明亮） ---- */
+[data-theme="rose"] {
+  --bg: #fbf3f5;
+  --panel: #ffffff;
+  --ink: #2b1d22;
+  --ink-2: #5e454d;
+  --muted: #8c6d76;
+  --line: #eedee3;
+  --line-2: #ddc6d0;
+  --accent: #b3175b;
+  --accent-dark: #94144c;
+  --accent-soft: #fbe8f0;
+  --ok: #0f7a55;
+  --ok-bg: #eef7f2;
+  --warn: #9a6200;
+  --warn-bg: #fdf6e7;
+  --danger: #b3261e;
+  --danger-bg: #fdf2f1;
+}
+
+/* ---- 深海蓝（暗） ---- */
+[data-theme="ocean"] {
+  color-scheme: dark;
+  --bg: #0b1524;
+  --panel: #14243a;
+  --ink: #e5edf7;
+  --ink-2: #adbfd6;
+  --muted: #8098b3;
+  --line: #243650;
+  --line-2: #314965;
+  --accent: #38bdf8;
+  --accent-dark: #7dd3fc;
+  --accent-soft: #12354c;
+  --ok: #34d399;
+  --ok-bg: #12332b;
+  --warn: #f4c561;
+  --warn-bg: #382f18;
+  --danger: #fb7185;
+  --danger-bg: #3a2029;
+}
+
+/* ---- 暗色系通用硬编码浅底覆盖（dark + ocean） ---- */
+[data-theme="dark"] .btn, [data-theme="ocean"] .btn { background: var(--panel); }
+[data-theme="dark"] .btn:hover, [data-theme="ocean"] .btn:hover { background: #262e39; border-color: var(--line-2); }
+[data-theme="dark"] .btn:active, [data-theme="ocean"] .btn:active { background: #2e3743; }
 [data-theme="dark"] input[type=text], [data-theme="dark"] input[type=password],
 [data-theme="dark"] input[type=number], [data-theme="dark"] input[type=datetime-local],
-[data-theme="dark"] textarea, [data-theme="dark"] select { background: #161b22; }
-[data-theme="dark"] input::placeholder, [data-theme="dark"] textarea::placeholder { color: #6a7483; }
-[data-theme="dark"] input:focus, [data-theme="dark"] textarea:focus { box-shadow: 0 0 0 3px rgba(91, 140, 255, .18); }
+[data-theme="dark"] textarea, [data-theme="dark"] select,
+[data-theme="ocean"] input[type=text], [data-theme="ocean"] input[type=password],
+[data-theme="ocean"] input[type=number], [data-theme="ocean"] input[type=datetime-local],
+[data-theme="ocean"] textarea, [data-theme="ocean"] select { background: #161b22; }
+[data-theme="dark"] input::placeholder, [data-theme="dark"] textarea::placeholder,
+[data-theme="ocean"] input::placeholder, [data-theme="ocean"] textarea::placeholder { color: #6a7483; }
+[data-theme="dark"] input:focus, [data-theme="dark"] textarea:focus,
+[data-theme="ocean"] input:focus, [data-theme="ocean"] textarea:focus { box-shadow: 0 0 0 3px rgba(91, 140, 255, .18); }
 [data-theme="dark"] .secret-row, [data-theme="dark"] .result .note,
 [data-theme="dark"] .login-box, [data-theme="dark"] .admin-head,
 [data-theme="dark"] .summary .item, [data-theme="dark"] .panel,
 [data-theme="dark"] .dialog, [data-theme="dark"] .big-key,
-[data-theme="dark"] .lic-info { background: var(--panel); }
-[data-theme="dark"] .secret-row { border-color: #2f5a47; }
-[data-theme="dark"] .icon-btn:hover { background: #2e3743; }
-[data-theme="dark"] thead th, [data-theme="dark"] tbody tr:hover { background: #222932; }
-[data-theme="dark"] tbody td { border-bottom-color: var(--line); }
-[data-theme="dark"] .bar { background: #333c48; }
-[data-theme="dark"] .bar.full i { background: #e2685a; }
-[data-theme="dark"] .tag.ok { border-color: #2f5a47; }
-[data-theme="dark"] .tag.off { color: var(--muted); background: #2a313b; border-color: var(--line); }
-[data-theme="dark"] .tag.warn { border-color: #5c4c28; }
-[data-theme="dark"] .tag.bad { border-color: #5c3230; }
-[data-theme="dark"] .badge-rejected { background: #2a313b; color: var(--muted); }
-[data-theme="dark"] .dev-tip code, [data-theme="dark"] .dev-help code { background: #2a313b; }
-[data-theme="dark"] .btn:not(.primary):not(.danger) { color: var(--ink); }
-[data-theme="dark"] .site-foot {
+[data-theme="dark"] .lic-info,
+[data-theme="ocean"] .secret-row, [data-theme="ocean"] .result .note,
+[data-theme="ocean"] .login-box, [data-theme="ocean"] .admin-head,
+[data-theme="ocean"] .summary .item, [data-theme="ocean"] .panel,
+[data-theme="ocean"] .dialog, [data-theme="ocean"] .big-key,
+[data-theme="ocean"] .lic-info { background: var(--panel); }
+[data-theme="dark"] .secret-row, [data-theme="ocean"] .secret-row { border-color: #2f5a47; }
+[data-theme="dark"] .icon-btn:hover, [data-theme="ocean"] .icon-btn:hover { background: #2e3743; }
+[data-theme="dark"] thead th, [data-theme="dark"] tbody tr:hover,
+[data-theme="ocean"] thead th, [data-theme="ocean"] tbody tr:hover { background: #222932; }
+[data-theme="dark"] tbody td, [data-theme="ocean"] tbody td { border-bottom-color: var(--line); }
+[data-theme="dark"] .bar, [data-theme="ocean"] .bar { background: #333c48; }
+[data-theme="dark"] .bar.full i, [data-theme="ocean"] .bar.full i { background: #e2685a; }
+[data-theme="dark"] .tag.ok, [data-theme="ocean"] .tag.ok { border-color: #2f5a47; }
+[data-theme="dark"] .tag.off, [data-theme="ocean"] .tag.off { color: var(--muted); background: #2a313b; border-color: var(--line); }
+[data-theme="dark"] .tag.warn, [data-theme="ocean"] .tag.warn { border-color: #5c4c28; }
+[data-theme="dark"] .tag.bad, [data-theme="ocean"] .tag.bad { border-color: #5c3230; }
+[data-theme="dark"] .badge-rejected, [data-theme="ocean"] .badge-rejected { background: #2a313b; color: var(--muted); }
+[data-theme="dark"] .dev-tip code, [data-theme="dark"] .dev-help code,
+[data-theme="ocean"] .dev-tip code, [data-theme="ocean"] .dev-help code { background: #2a313b; }
+[data-theme="dark"] .btn:not(.primary):not(.danger),
+[data-theme="ocean"] .btn:not(.primary):not(.danger) { color: var(--ink); }
+[data-theme="dark"] .site-foot, [data-theme="ocean"] .site-foot {
   background: #171b22;
   border-top-color: var(--line);
 }
-[data-theme="dark"] .site-foot-logo,
-[data-theme="dark"] .site-foot-top h5,
-[data-theme="dark"] .site-foot-bottom { color: var(--ink-2); }
-[data-theme="dark"] .site-foot-brand p,
-[data-theme="dark"] .site-foot-col a,
-[data-theme="dark"] .site-foot-bottom a { color: var(--muted); }
-[data-theme="dark"] .site-foot-author strong,
-[data-theme="dark"] .site-foot-author span { color: var(--accent); }
+[data-theme="dark"] .site-foot-logo, [data-theme="dark"] .site-foot-top h5,
+[data-theme="dark"] .site-foot-bottom, [data-theme="ocean"] .site-foot-logo,
+[data-theme="ocean"] .site-foot-top h5, [data-theme="ocean"] .site-foot-bottom { color: var(--ink-2); }
+[data-theme="dark"] .site-foot-brand p, [data-theme="dark"] .site-foot-col a,
+[data-theme="dark"] .site-foot-bottom a, [data-theme="ocean"] .site-foot-brand p,
+[data-theme="ocean"] .site-foot-col a, [data-theme="ocean"] .site-foot-bottom a { color: var(--muted); }
+[data-theme="dark"] .site-foot-author strong, [data-theme="dark"] .site-foot-author span,
+[data-theme="ocean"] .site-foot-author strong, [data-theme="ocean"] .site-foot-author span { color: var(--accent); }
 
-/* ---------------- 主题切换悬浮按钮 ---------------- */
-.theme-toggle {
+/* ---------------- 主题选择器（悬浮按钮 + 弹出面板） ---------------- */
+.theme-picker {
   position: fixed;
   right: 18px;
   bottom: 18px;
   z-index: 9999;
+}
+.theme-toggle {
   width: 42px;
   height: 42px;
   display: flex;
@@ -106,9 +207,47 @@
 }
 .theme-toggle:hover { transform: translateY(-2px); color: var(--accent); border-color: var(--accent); }
 .theme-toggle svg { width: 20px; height: 20px; }
-.theme-toggle .ico-sun { display: none; }
-[data-theme="dark"] .theme-toggle .ico-moon { display: none; }
-[data-theme="dark"] .theme-toggle .ico-sun { display: block; }
+.theme-menu {
+  position: absolute;
+  right: 0;
+  bottom: 52px;
+  min-width: 156px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, .22);
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+}
+.theme-menu.open { display: flex; }
+.theme-opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  font-family: var(--font);
+}
+.theme-opt:hover { background: var(--accent-soft); color: var(--ink); }
+.theme-opt.active { color: var(--accent); font-weight: 600; }
+.theme-opt .swatch {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  flex: 0 0 15px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14);
+}
+.theme-opt .theme-name { flex: 1; }
+.theme-opt .theme-check { color: var(--accent); font-size: 12px; }
 
 * { box-sizing: border-box; }
 

@@ -43,7 +43,7 @@ SECRET_PATH = os.path.join(DATA_DIR, "secret.key")
 DEFAULT_ADMIN_PASSWORD = "admin123"
 SESSION_HOURS = 12
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.1"
 INSTALL_FLAG = os.path.join(DATA_DIR, "installed.json")
 
 # 版权署名：发行版固定保留，后台与安装向导都无法关闭
